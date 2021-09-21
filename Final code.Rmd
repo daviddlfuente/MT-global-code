@@ -1,0 +1,3001 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+header-includes:
+- \usepackage{changepage}
+- \usepackage{color,soul,xcolor}
+---
+  
+\begin{figure}
+  \includegraphics[width=4cm,height=3cm]{Logo_UC3M} 
+  \hspace{\fill}
+  \includegraphics[width=2cm,height=2cm]{UCM} 
+  \hspace{0.5cm}
+  \includegraphics[width=2cm,height=2cm]{ICCMU} 
+\end{figure}
+
+\noindent\makebox[\linewidth]{\rule{17cm}{1pt}}
+
+\noindent\makebox[\linewidth]{\rule{13cm}{0.5pt}}
+
+\begin{adjustwidth}{2cm}{2cm}
+
+\Large
+\textbf{Meeting 9 2021-07-27}
+\vspace{0.5cm}
+
+\normalsize
+\textbf{Student}: David de la Fuente López
+
+\textbf{MT's directors}: Eduardo García Portugués (UC3M - Departamento de estadística) y Ana Llorens (ICCMU).
+
+\end{adjustwidth}
+
+\noindent\makebox[\linewidth]{\rule{13cm}{0.5pt}}
+
+\tableofcontents
+
+```{r global_options, include=T, echo = F}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+
+
+```{r}
+##########################################################################################
+##### This code creates the data set with the variables of part A                    #####
+##########################################################################################
+
+setwd("C:/Users/TEMP/Documents/MU Statistics for data Science/MT/Data bases")
+data_2 <- readxl::read_excel("Arias_Metastasio_key_F.xlsx", na = c("-","?"))
+library(tidyverse)
+
+
+data_2 <- dplyr::select(data_2, -c(No,Id))
+# data_2 <- dplyr::slice(data_2, -which(is.na(data_2$Opera)))  # There was a piece with all variable taking NA`s. It is not present anymore.
+data_2 <- dplyr::select(data_2, -Genre) 
+data_2 <- dplyr::select(data_2, -Language) 
+data_2 <- dplyr::slice(data_2, -which(is.na(data_2$Basic_passion))) 
+
+data_2 <- mutate(data_2, Passion_1 = sapply(strsplit(Passion, split = ','), function(x) x[1]),
+               Passion_2 = sapply(strsplit(Passion, split = ','), function(x) x[2]),
+               Passion_3 = sapply(strsplit(Passion, split = ','), function(x) x[3]),
+               Passion_4 = sapply(strsplit(Passion, split = ','), function(x) x[4]), .after = Passion, .keep = "unused")
+
+
+
+data_2 <- dplyr::select(data_2, -Label)
+data_2 <- dplyr::select(data_2, -Aria)
+data_2 <- dplyr::select(data_2, -Decade)
+data_2 <- dplyr::select(data_2, - Composer)
+data_2 <- dplyr::select(data_2, -City)
+
+data_2 <- dplyr::select(data_2, -Character)
+data_2 <- dplyr::select(data_2, -c(ChType, Singer)) 
+data_2 <- dplyr::select(data_2, -Clef)
+data_2 <- dplyr::select(data_2, -c(Form, Form_type))
+
+
+data_2 <- dplyr::select(data_2, -c(TempA_group1)) # I leave TempA_group2
+data_2 <- dplyr::select(data_2, -c(KSigA)) # I leave KeyA
+
+
+data_2 <- dplyr::select(data_2, -c(TempB_group1)) # I leave TempB_group2
+data_2 <- dplyr::select(data_2, -c(KSigB, KeyB)) 
+
+
+
+tempos <- readxl::read_excel("Tempo marks_groupings_F.xlsx")
+
+tempos.A <- tempos[!is.na(pmatch(tempos$`Tempo mark`,data_2$TempA)),]
+
+tempos.B <- tempos[!is.na(pmatch(tempos$`Tempo mark`,data_2$TempB)),]
+
+indexes <- pmatch(data_2$TempA, tempos.A$`Tempo mark`, duplicates.ok = TRUE)
+
+TempA.con <- rep(0,dim(data_2)[1])
+TempA.con <- tempos.A$index[indexes]
+
+data_2 <- add_column(data_2, TempA.con, .after = "TempA")
+data_2 <- select(data_2, -c(TempA))
+
+indexes.B <- pmatch(data_2$TempB, tempos.B$`Tempo mark`, duplicates.ok = TRUE)
+
+TempB.con <- rep(0,dim(data_2)[1])
+TempB.con <- tempos.B$index[indexes.B]
+
+data_2 <- add_column(data_2, TempB.con, .after = "TempB")
+data_2 <- select(data_2, -c(TempB))
+
+
+
+data_2 <- dplyr::select(data_2, -c(Scoring, Traverso))
+
+
+data_2 <- rename(data_2, Passion_0 = Value)
+data_2 <- relocate(data_2, Passion_0, .before = Basic_passion)
+data_2 <- dplyr::select(data_2, -c(Time)) 
+
+
+data_2 <- dplyr::select(data_2, -c(str,eh,cl,fg,timp))
+data_2$fl <- replace_na(data_2$fl, 0)
+data_2$ob <- replace_na(data_2$ob, 0)
+data_2$hn <- replace_na(data_2$hn, 0)
+data_2$tp <- replace_na(data_2$tp, 0)
+
+
+data_2 <- dplyr::select(.data = data_2, -c(Opera, Year, Country, Gender))
+
+
+data_2 <- dplyr::slice(data_2, -which(data_2$Passion_1 == "confusion"))
+
+temp <- data_2 %>% filter(`5th_B` == "3") %>% filter(ModeB == "M") %>% filter(HarmFunction == "SD") %>% dplyr::select(c(`5th_A`, ModeA, `5th_B`, ModeB, HarmFunction)) 
+
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+
+apply(data_2, 2, function(x) sum(is.na(x)))
+
+# Replace 2 NAs
+data_2[which(is.na(data_2$`5th_A`)), "5th_A"] <- getmode(na.omit(temp$`5th_A`))
+data_2[which(is.na(data_2$ModeA)), "ModeA"] <- getmode(na.omit(temp$ModeA))
+
+# NA imputation for pieces with non-defined tempo.
+data_2$TempA_group2[which(is.na(data_2$TempA_group2))] <- "Fast"
+data_2$TempB_group2[which(is.na(data_2$TempB_group2))] <- "Fast"
+
+data_2$TempA.con[which(is.na(data_2$TempA.con))] <- mean(na.omit(data_2$TempA.con))
+data_2$TempB.con[which(is.na(data_2$TempB.con))] <- mean(na.omit(data_2$TempB.con))
+
+# Difference variables. 
+data_2 <- mutate(data_2, d_TSig = as.numeric(TSigA != TSigB), .after = ModeA)
+
+data_2 <- mutate(data_2, d_TSig_group = as.numeric(TSigA_group != TSigB_group), .after = d_TSig)
+
+data_2 <- mutate(data_2, ch_Temp = ifelse(TempA.con == TempB.con, "None",
+                                          ifelse(TempA.con > TempB.con, "Slower", "Faster")), 
+                 .after = d_TSig_group)
+
+
+
+
+data_2 <- mutate(data_2, d_KSig_group = as.numeric(KSigA_group != KSigB_group), .after = ch_Temp)
+
+data_2 <- mutate(data_2, ch_Mode = ifelse(ModeA == ModeB, "None", paste0(ModeA,"-",ModeB)),
+                 .after = d_KSig_group)
+
+
+data_2 <- dplyr::select(data_2, -c(Passion_1, Passion_2, Passion_3, Passion_4))
+
+data_2$TempA.con[which(is.na(data_2$TempA.con))] <- mean(na.omit(data_2$TempA.con))
+
+data_2 <- data_2 %>% mutate_if(sapply(data_2, is.character), as.factor)
+
+
+
+##### ----------------------------------------------------------------------------- #####
+# Up to here all the variables are coded.
+# If we want variables of part B and differences, the NA's of Tempo B continuous
+# should be removed; also the pieces WITHOUT part B should be removed.
+##### ----------------------------------------------------------------------------- #####
+
+data_A <- dplyr::select(data_2, -c(11:23))
+
+get_binary <- function(x){
+  if(class(x) == "numeric"){
+    sum(range(x)) == 1
+    }
+  else{
+    FALSE
+  }
+}
+
+
+data_A <- data_A %>% mutate_if(sapply(data_A, get_binary), as.factor)
+
+data_A <- data_A %>% mutate(`5th_A`= as.factor(`5th_A`))
+
+data_A <- dplyr::select(data_A, - c(TSigA))
+
+cat("Structure of the data set with only categorical variables related to part A (and inst):\n")
+str(data_A)
+```
+
+
+```{r}
+##########################################################################################
+##### This code creates the reduced data set with the first 15 dimensions of the MCA #####
+##########################################################################################
+
+library(FactoMineR)
+library(factoextra)
+
+mca_2 <- MCA(dplyr::select(data_A, -c(Basic_passion, KeyA, Passion_0, TempA.con)), ncp = 15, graph = FALSE)
+
+data_reduced <- as.data.frame(mca_2$ind$coord)
+```
+
+
+
+```{r}
+library(egg)
+```
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for the plots of the variable TSigA_group
+##### ------------------------------------------------- #####
+
+group_sizes.1 <- c(table(data_A$Passion_0), table(data_A$Passion_0), table(data_A$Passion_0))
+
+P1 <- ggplot(aes(x = TSigA_group, fill = Passion_0, label = Passion_0), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.1, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.position = c(0.80, 0.18),
+        legend.key.size = unit(0.35, "cm"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 9, hjust = 0)) +
+  ggtitle("Distribution of TSigA_group in terms of Passion_0") +
+  labs(y = "") + 
+  ylim(c(0,0.86)) +
+  coord_flip() + 
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.1, 3), label = round(..count../group_sizes.1, 3)),
+            hjust = -0.3, position = position_dodge(0.9))
+
+
+
+
+group_sizes.2 <- c(table(data_A$Basic_passion), table(data_A$Basic_passion), table(data_A$Basic_passion))
+
+P2 <- ggplot(aes(x = TSigA_group, fill = Basic_passion, label = Basic_passion), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.2, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.position = c(0.80, 0.18),
+        legend.key.size = unit(0.35, "cm"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 9, hjust = 0),
+        axis.text.y = element_blank()) +
+  ggtitle("Distribution of TSigA_group in terms of Basic_passion") +
+  labs(y = "", x = "") + 
+  ylim(c(0,0.98)) + 
+  coord_flip() + 
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.2, 3), label = round(..count../group_sizes.2, 3)),
+            hjust = -0.3, position = position_dodge(0.9))
+
+
+
+ggarrange(P1, P2, nrow = 1, ncol = 2, bottom = "Proportions with respect to the response levels", 
+          labels = c("A)", "B)"))
+```
+
+
+
+<!-- ```{r} -->
+<!-- ##### ------------------------------------------------- ##### -->
+<!-- # Code for the plots of the variable TempA.con -->
+<!-- ##### ------------------------------------------------- ##### -->
+
+<!-- P1 <- ggplot(aes(x = TempA.con, fill = Passion_0, col = Passion_0), data = data_A) +  -->
+<!--   geom_density(size = 1.2, alpha = 0.2) + -->
+<!--   theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"), -->
+<!--         panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8), -->
+<!--         legend.title = element_text(face = "bold.italic"), -->
+<!--         legend.position = c(0.80, 0.8), -->
+<!--         legend.key.size = unit(0.35, "cm"), -->
+<!--         legend.background = element_rect(color = "black"), -->
+<!--         plot.title = element_text(face="bold", size = 9, hjust = 0)) + -->
+<!--   ggtitle("Density of TempA.con in terms of Passion_0") -->
+
+
+<!-- P2 <- ggplot(aes(x = TempA.con, col = Basic_passion), data = data_A) +  -->
+<!--   geom_density(size = 1.2, alpha = 0.2) + -->
+<!--   theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"), -->
+<!--         panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8), -->
+<!--         legend.title = element_text(face = "bold.italic"), -->
+<!--         legend.position = c(0.80, 0.8), -->
+<!--         legend.key.size = unit(0.35, "cm"), -->
+<!--         legend.background = element_rect(color = "black"), -->
+<!--         plot.title = element_text(face="bold", size = 9, hjust = 0)) + -->
+<!--   ggtitle("Density of TempA.con in terms of Basic_passion") -->
+
+
+
+<!-- ggarrange(P1, P2, nrow = 1, ncol = 2, bottom = "Proportions with respect to the response levels",  -->
+<!--           labels = c("A)", "B)")) -->
+<!-- ``` -->
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for the plots of the variable TempA_group2
+##### ------------------------------------------------- #####
+
+group_sizes.1 <- c(table(data_A$Passion_0), table(data_A$Passion_0), table(data_A$Passion_0))
+
+P1 <- ggplot(aes(x = TempA_group2, fill = Passion_0, label = Passion_0), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.1, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.position = c(0.80, 0.8),
+        legend.key.size = unit(0.35, "cm"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 9, hjust = 0)) +
+  ggtitle("Distribution of TempA_group2 in terms of Passion_0") +
+  labs(y = "") + 
+  ylim(c(0,0.7)) +
+  coord_flip() + 
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.1, 3), label = round(..count../group_sizes.1, 3)),
+            hjust = -0.3, position = position_dodge(0.9))
+
+
+
+
+group_sizes.2 <- c(table(data_A$Basic_passion), table(data_A$Basic_passion), table(data_A$Basic_passion))
+
+P2 <- ggplot(aes(x = TempA_group2, fill = Basic_passion, label = Basic_passion), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.2, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.position = c(0.80, 0.8),
+        legend.key.size = unit(0.35, "cm"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 9, hjust = 0),
+        axis.text.y = element_blank()) +
+  ggtitle("Distribution of TempA_group2 in terms of Basic_passion") +
+  labs(y = "", x = "") + 
+  ylim(c(0,0.98)) + 
+  coord_flip() + 
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.2, 3), label = round(..count../group_sizes.2, 3)),
+            hjust = -0.3, position = position_dodge(0.9))
+
+
+
+ggarrange(P1, P2, nrow = 1, ncol = 2, bottom = "Proportions with respect to the response levels", 
+          labels = c("A)", "B)"))
+```
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for the plots of the variable KSigA_group
+##### ------------------------------------------------- #####
+
+group_sizes.1 <- c(table(data_A$Passion_0), table(data_A$Passion_0), table(data_A$Passion_0))
+
+P1 <- ggplot(aes(x = KSigA_group, fill = Passion_0, label = Passion_0), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.1, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.position = c(0.80, 0.5),
+        legend.key.size = unit(0.35, "cm"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 9, hjust = 0)) +
+  ggtitle("Distribution of KSigA_group in terms of Passion_0") +
+  labs(y = "") + 
+  ylim(c(0,0.6)) +
+  coord_flip() + 
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.1, 3), label = round(..count../group_sizes.1, 3)),
+            hjust = -0.3, position = position_dodge(0.9))
+
+
+
+
+group_sizes.2 <- c(table(data_A$Basic_passion), table(data_A$Basic_passion), table(data_A$Basic_passion))
+
+P2 <- ggplot(aes(x = KSigA_group, fill = Basic_passion, label = Basic_passion), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.2, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.position = c(0.80, 0.49),
+        legend.key.size = unit(0.35, "cm"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 9, hjust = 0),
+        axis.text.y = element_blank()) +
+  ggtitle("Distribution of KSigA_group in terms of Basic_passion") +
+  labs(y = "", x = "") + 
+  ylim(c(0,0.68)) + 
+  coord_flip() + 
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.2, 3), label = round(..count../group_sizes.2, 3)),
+            hjust = -0.3, position = position_dodge(0.9))
+
+
+
+ggarrange(P1, P2, nrow = 1, ncol = 2, bottom = "Proportions with respect to the response levels", 
+          labels = c("A)", "B)"))
+```
+
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for the plots of the variable KeyA
+##### ------------------------------------------------- #####
+
+group_sizes.1 <- c(table(data_A$Passion_0), table(data_A$Passion_0), table(data_A$Passion_0)[1],
+                   table(data_A$Passion_0), table(data_A$Passion_0)[1], table(data_A$Passion_0),
+                   table(data_A$Passion_0), table(data_A$Passion_0), table(data_A$Passion_0),
+                   table(data_A$Passion_0), table(data_A$Passion_0)[1], table(data_A$Passion_0)[1],
+                   table(data_A$Passion_0), table(data_A$Passion_0), table(data_A$Passion_0),
+                   table(data_A$Passion_0), table(data_A$Passion_0), table(data_A$Passion_0))
+
+P1 <- ggplot(aes(x = KeyA, fill = Passion_0, label = Passion_0), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.1, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.position = c(0.80, 0.65),
+        legend.key.size = unit(0.5, "cm"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 9, hjust = 0)) +
+  ggtitle("Distribution of KeyA in terms of Passion_0") +
+  labs(y = "") + 
+  ylim(c(0,0.23)) +
+  coord_flip() + 
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.1, 3), label = round(..count../group_sizes.1, 3)),
+            hjust = -0.3, position = position_dodge(0.9))
+P1
+
+
+
+
+
+group_sizes.2 <- c(table(data_A$Basic_passion)[-4], table(data_A$Basic_passion), table(data_A$Basic_passion)[6],
+                   table(data_A$Basic_passion)[-c(1,3,4)], table(data_A$Basic_passion)[1], table(data_A$Basic_passion),
+                   table(data_A$Basic_passion), table(data_A$Basic_passion), table(data_A$Basic_passion),
+                   table(data_A$Basic_passion), table(data_A$Basic_passion)[2], table(data_A$Basic_passion)[-c(3,6)],
+                   table(data_A$Basic_passion), table(data_A$Basic_passion), table(data_A$Basic_passion)[-3],
+                   table(data_A$Basic_passion), table(data_A$Basic_passion)[-3], table(data_A$Basic_passion))
+
+P2 <- ggplot(aes(x = KeyA, fill = Basic_passion, label = Basic_passion), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.2, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.position = c(0.80, 0.15),
+        legend.key.size = unit(0.5, "cm"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 9, hjust = 0),
+        axis.text.y = element_blank()) +
+  ggtitle("Distribution of KeyA in terms of Basic_passion") +
+  labs(y = "", x = "") + 
+  ylim(c(0,0.45)) + 
+  coord_flip() + 
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.2, 3), label = round(..count../group_sizes.2, 3)),
+            hjust = -0.3, position = position_dodge(0.9))
+
+
+
+
+ggarrange(P1, P2, nrow = 1, ncol = 2, bottom = "Proportions with respect to the response levels", 
+          labels = c("A)", "B)"))
+```
+
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for the plots of the variable `5th_A`
+##### ------------------------------------------------- #####
+
+group_sizes.1 <- c(table(data_A$Passion_0)[1], table(data_A$Passion_0), table(data_A$Passion_0),
+                   table(data_A$Passion_0), table(data_A$Passion_0), table(data_A$Passion_0),
+                   table(data_A$Passion_0), table(data_A$Passion_0), table(data_A$Passion_0),
+                   table(data_A$Passion_0))
+
+P1 <- ggplot(aes(x = `5th_A`, fill = Passion_0, label = Passion_0), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.1, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.position = c(0.80, 0.15),
+        legend.key.size = unit(0.5, "cm"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 9, hjust = 0)) +
+  ggtitle("Distribution of `5th_A` in terms of Passion_0") +
+  labs(y = "") + 
+  ylim(c(0,0.22)) +
+  coord_flip() + 
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.1, 3), label = round(..count../group_sizes.1, 3)),
+            hjust = -0.3, position = position_dodge(0.9))
+P1
+
+
+
+
+
+group_sizes.2 <- c(table(data_A$Basic_passion)[1], table(data_A$Basic_passion)[-3], table(data_A$Basic_passion),
+                   table(data_A$Basic_passion), table(data_A$Basic_passion), table(data_A$Basic_passion),
+                   table(data_A$Basic_passion), table(data_A$Basic_passion), table(data_A$Basic_passion),
+                   table(data_A$Basic_passion))
+
+P2 <- ggplot(aes(x = `5th_A`, fill = Basic_passion, label = Basic_passion), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.2, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.position = c(0.80, 0.15),
+        legend.key.size = unit(0.5, "cm"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 9, hjust = 0),
+        axis.text.y = element_blank()) +
+  ggtitle("Distribution of `5th_A` in terms of Basic_passion") +
+  labs(y = "", x = "") + 
+  ylim(c(0,0.43)) + 
+  coord_flip() + 
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.2, 3), label = round(..count../group_sizes.2, 3)),
+            hjust = -0.3, position = position_dodge(0.9))
+
+
+
+
+ggarrange(P1, P2, nrow = 1, ncol = 2, bottom = "Proportions with respect to the response levels", 
+          labels = c("A)", "B)"))
+```
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for the plots of the variable ModeA
+##### ------------------------------------------------- #####
+
+group_sizes.1 <- c(table(data_A$Passion_0), table(data_A$Passion_0))
+
+P1 <- ggplot(aes(x = ModeA, fill = Passion_0, label = Passion_0), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.1, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.position = c(0.80, 0.15),
+        legend.key.size = unit(0.5, "cm"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 9, hjust = 0)) +
+  ggtitle("Distribution of ModeA in terms of Passion_0") +
+  labs(y = "") + 
+  ylim(c(0,1.1)) +
+  coord_flip() + 
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.1, 3), label = round(..count../group_sizes.1, 3)),
+            hjust = -0.3, position = position_dodge(0.9))
+
+
+
+
+
+
+group_sizes.2 <- c(table(data_A$Basic_passion), table(data_A$Basic_passion))
+
+P2 <- ggplot(aes(x = ModeA, fill = Basic_passion, label = Basic_passion), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.2, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.position = c(0.80, 0.20),
+        legend.key.size = unit(0.5, "cm"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 9, hjust = 0),
+        axis.text.y = element_blank()) +
+  ggtitle("Distribution of ModeA in terms of Basic_passion") +
+  labs(y = "", x = "") + 
+  ylim(c(0,1.1)) + 
+  coord_flip() + 
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.2, 3), label = round(..count../group_sizes.2, 3)),
+            hjust = -0.3, position = position_dodge(0.9))
+
+
+
+
+ggarrange(P1, P2, nrow = 1, ncol = 2, bottom = "Proportions with respect to the response levels", 
+          labels = c("A)", "B)"))
+```
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for the instrumental variables in terms of Passion_0
+##### ------------------------------------------------- #####
+
+
+group_sizes.1 <- c(table(data_A$Passion_0), table(data_A$Passion_0))
+
+P1 <- ggplot(aes(x = fl, fill = Passion_0, label = Passion_0), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.1, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.position = "none",
+        plot.title = element_text(face="bold", size = 9, hjust = 0)) +
+  ggtitle("Distribution of fl in terms of Passion_0") +
+  labs(y = "", x = "Flutes") + 
+  ylim(c(0,0.98)) +
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.1, 3), label = round(..count../group_sizes.1, 3)),
+            vjust = -0.3, position = position_dodge(0.9))
+
+
+
+P2 <- ggplot(aes(x = ob, fill = Passion_0, label = Passion_0), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.1, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.position = c(0.50, 0.8),
+        legend.key.size = unit(2, "cm"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 9, hjust = 0),
+        axis.text.y = element_blank()) +
+  ggtitle("Distribution of ob in terms of Passion_0") +
+  labs(y = "", x = "Oboes") + 
+  ylim(c(0,0.98)) +
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.1, 3), label = round(..count../group_sizes.1, 3)),
+            vjust = -0.3, position = position_dodge(0.9))
+
+
+
+P3 <- ggplot(aes(x = hn, fill = Passion_0, label = Passion_0), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.1, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.position = "none",
+        plot.title = element_text(face="bold", size = 9, hjust = 0),
+        axis.text.y = element_blank()) +
+  ggtitle("Distribution of hn in terms of Passion_0") +
+  labs(y = "", x = "Horns") + 
+  ylim(c(0,0.98)) +
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.1, 3), label = round(..count../group_sizes.1, 3)),
+            vjust = -0.3, position = position_dodge(0.9))
+
+
+
+P4 <- ggplot(aes(x = tp, fill = Passion_0, label = Passion_0), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.1, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.position = "none",
+        plot.title = element_text(face="bold", size = 9, hjust = 0),
+        axis.text.y = element_blank()) +
+  ggtitle("Distribution of tp in terms of Passion_0") +
+  labs(y = "", x = "Trumpets") + 
+  ylim(c(0,0.98)) +
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.1, 3), label = round(..count../group_sizes.1, 3)),
+            vjust = -0.3, position = position_dodge(0.9))
+
+
+ggarrange(P1, P2, P3, P4, nrow = 1, ncol = 4, bottom = "Proportions with respect to the Passion_0 levels", 
+          labels = c("A)", "B)", "C)", "D)"))
+```
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for the instrumental variables in terms of Basic_passion
+##### ------------------------------------------------- #####
+
+
+group_sizes.1 <- c(table(data_A$Basic_passion), table(data_A$Basic_passion))
+
+P1 <- ggplot(aes(x = fl, fill = Basic_passion, label = Basic_passion), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.1, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.position = c(0.70, 0.8),
+        legend.key.size = unit(1, "cm"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 10, hjust = 0)) +
+  ggtitle("Distribution of fl in terms of Basic_passion") +
+  labs(y = "", x = "Flutes") + 
+  ylim(c(0,0.98)) +
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.1, 3), label = round(..count../group_sizes.1, 3)),
+            hjust = -0.3, position = position_dodge(0.9), angle = 90)
+
+
+
+P2 <- ggplot(aes(x = ob, fill = Basic_passion, label = Basic_passion), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.1, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.position = "none",
+        plot.title = element_text(face="bold", size = 10, hjust = 0),
+        axis.text.y = element_blank()) +
+  ggtitle("Distribution of ob in terms of Basic_passion") +
+  labs(y = "", x = "Oboes") + 
+  ylim(c(0,0.98)) +
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.1, 3), label = round(..count../group_sizes.1, 3)),
+            hjust = -0.3, position = position_dodge(0.9), angle = 90)
+
+
+
+P3 <- ggplot(aes(x = hn, fill = Basic_passion, label = Basic_passion), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.1, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.position = "none",
+        plot.title = element_text(face="bold", size = 10, hjust = 0),
+        axis.text.y = element_blank()) +
+  ggtitle("Distribution of hn in terms of Basic_passion") +
+  labs(y = "", x = "Horns") + 
+  ylim(c(0,0.98)) +
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.1, 3), label = round(..count../group_sizes.1, 3)),
+            hjust = -0.3, position = position_dodge(0.9), angle = 90)
+
+
+
+P4 <- ggplot(aes(x = tp, fill = Basic_passion, label = Basic_passion), data = data_A) + 
+  geom_bar(aes(y = round(..count../group_sizes.1, 3)), position = "dodge", col = "black") +
+  scale_fill_brewer(palette = "Spectral") +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.position = "none",
+        plot.title = element_text(face="bold", size = 10, hjust = 0),
+        axis.text.y = element_blank()) +
+  ggtitle("Distribution of tp in terms of Basic_passion") +
+  labs(y = "", x = "Trumpets") + 
+  ylim(c(0,0.98)) +
+  geom_text(stat = "count", aes(y = round(..count../group_sizes.1, 3), label = round(..count../group_sizes.1, 3)),
+            hjust = -0.3, position = position_dodge(0.9), angle = 90)
+
+
+ggarrange(P1, P2, P3, P4, nrow = 1, ncol = 4, bottom = "Proportions with respect to the Basic_passion levels", 
+          labels = c("A)", "B)", "C)", "D)"))
+```
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for Heatmap in terms of Passion_0
+##### ------------------------------------------------- #####
+
+library(StatMatch)
+data_gower_mat <- dplyr::select(data_A, -c(Basic_passion, TempA.con, `5th_A`)) %>%  as.data.frame()
+data_gower_mat <- arrange(data_gower_mat, group_by = Passion_0)
+data_gower_mat <- dplyr::select(data_gower_mat, -Passion_0)
+
+gower_mat <- as.data.frame(StatMatch::gower.dist(data.x = data_gower_mat))
+
+
+gower_mat <- pivot_longer(gower_mat, cols = everything())
+gower_mat$name <- rep(1:2191, times = 2191)
+gower_mat <- rename(gower_mat, Y = name)
+gower_mat <- add_column(gower_mat, .before = "Y", X = rep(1:2191, each = 2191))
+gower_mat <- rename(gower_mat, Distance = value)
+
+library(hrbrthemes)
+library(viridis)
+
+ggplot(data = gower_mat) + 
+  geom_tile(aes(x = Y, y = X, fill = Distance)) + 
+  scale_fill_viridis(discrete = FALSE) +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 10, hjust = 0),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank()) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  geom_hline(yintercept = 1518, col = "red") + 
+  geom_vline(xintercept = 1518, col = "red") + 
+  labs(x = "", y = "") +
+  coord_equal()
+```
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for Heatmap in terms of Basic_passion
+##### ------------------------------------------------- #####
+
+library(StatMatch)
+data_gower_mat <- dplyr::select(data_A, -c(Passion_0, TempA.con, `5th_A`)) %>% as.data.frame()
+data_gower_mat <- arrange(data_gower_mat, group_by = Basic_passion)
+data_gower_mat <- dplyr::select(data_gower_mat, -Basic_passion)
+
+gower_mat <- as.data.frame(StatMatch::gower.dist(data.x = data_gower_mat))
+
+
+gower_mat <- pivot_longer(gower_mat, cols = everything())
+gower_mat$name <- rep(1:2191, times = 2191)
+gower_mat <- rename(gower_mat, Y = name)
+gower_mat <- add_column(gower_mat, .before = "Y", X = rep(1:2191, each = 2191))
+gower_mat <- rename(gower_mat, Distance = value)
+
+library(hrbrthemes)
+library(viridis)
+
+ggplot(data = gower_mat) + 
+  geom_tile(aes(x = Y, y = X, fill = Distance)) + 
+  scale_fill_viridis(discrete = FALSE) +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        legend.background = element_rect(color = "black"),
+        plot.title = element_text(face="bold", size = 10, hjust = 0),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank()) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  geom_hline(yintercept = 396, col = "red") + 
+  geom_vline(xintercept = 396, col = "red") + 
+  geom_hline(yintercept = 798, col = "red") + 
+  geom_vline(xintercept = 798, col = "red") +
+  geom_hline(yintercept = 937, col = "red") + 
+  geom_vline(xintercept = 937, col = "red") +
+  geom_hline(yintercept = 1206, col = "red") + 
+  geom_vline(xintercept = 1206, col = "red") +
+  geom_hline(yintercept = 1785, col = "red") + 
+  geom_vline(xintercept = 1785, col = "red") + 
+  labs(x = "", y = "") +
+  coord_equal()
+```
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for chi-squared tests of homogeneity
+##### ------------------------------------------------- #####
+
+data_tests <- dplyr::select(data_A, -c(Basic_passion, Passion_0, TempA.con, `5th_A`))
+
+p.values <- data.frame(Passion_0 = rep(0,dim(data_tests)[2]),
+                       Basic_passion = rep(0,dim(data_tests)[2]))
+
+set.seed(8)
+
+for(i in 1:dim(data_tests)[2]){
+   p.values[i,1] <- chisq.test(x = data_A$Passion_0,
+                               y = dplyr::pull(data_tests[,i]),
+                               simulate.p.value = TRUE,
+                               B = 50000)$p.value
+  
+   p.values[i,2] <- chisq.test(x = data_A$Basic_passion,
+                               y = dplyr::pull(data_tests[,i]),
+                               simulate.p.value = TRUE,
+                               B = 50000)$p.value
+}
+
+
+
+ad.p.val <- data.frame(Passion_0 = rep(0,dim(data_tests)[2]),
+                       Basic_passion = rep(0,dim(data_tests)[2]))
+
+ad.p.val$Passion_0 <- p.adjust(p.values[,1], method = "bonferroni")
+ad.p.val$Basic_passion <- p.adjust(p.values[,2], method = "bonferroni")
+
+rownames(ad.p.val) <- colnames(data_gower_mat)
+temp <- rep(rownames(ad.p.val), each = 2)
+
+
+ad.p.val <- pivot_longer(ad.p.val, cols = everything())
+
+ad.p.val <- add_column(ad.p.val, variable = temp)
+
+library(plot.matrix)
+
+ad.p.val$name <- factor(ad.p.val$name, levels = unique(ad.p.val$name))
+ad.p.val$variable <- factor(ad.p.val$variable, levels = unique(ad.p.val$variable))
+
+ggplot(ad.p.val, aes(x = name, y = variable)) + 
+  geom_raster(aes(fill = value)) + 
+  scale_fill_gradient2(midpoint = 0.5, low = "red", high = "blue", mid = "white") +
+  labs(x="letters", y="LETTERS", title="Matrix") +
+  theme_bw() + 
+  geom_text(mapping = aes(label = round(value, 4))) +
+  labs(fill = "p-value", y = "Features", x = "Response variables") + 
+  ggtitle("") +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0))
+```
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for Lasso
+##### ------------------------------------------------- #####
+
+library(glmnet)
+
+dplyr::select(data_A, -c(Passion_0, Basic_passion))
+
+
+##### A) Lasso applied to Passion_0
+
+
+wghts <- ifelse(data_A$Passion_0 == "Positive",
+                unname(table(data_A$Passion_0)[1]/dim(data_A)[1]),
+                unname(table(data_A$Passion_0)[2]/dim(data_A)[1]))
+
+formula.lasso.1 <- Passion_0 ~ TSigA_group + TempA_group2 + KSigA_group + KeyA + ModeA + fl + ob + hn + tp
+
+x <- model.matrix(formula.lasso.1, data = data_A)[,-1]
+
+set.seed(28)
+
+kcvLasso <- cv.glmnet(x = x,
+                      y = data_A$Passion_0,
+                      alpha = 1, nfolds = 10, family = "binomial",
+                      weights = wghts
+                      )
+
+glmmod <- glmnet(x = x,
+                 y = data_A$Passion_0,
+                 alpha = 1,
+                 family = 'binomial',
+                 weights = wghts,
+                 lambda =  kcvLasso$lambda.1se
+                 )
+
+# Initialize the data frame to save the coefficients for each iteration.
+
+B <- 100 # Number of iterations
+
+coeff.df <- data.frame(matrix(0, nrow = dim(x)[2] + 1, ncol = B))
+rownames(coeff.df) <- c("Intercept", glmmod$beta@Dimnames[[1]])
+colnames(coeff.df) <- 1:100
+
+set.seed(8)
+
+for(b in 1:B){
+  kcvLasso <- cv.glmnet(x = x,
+                        y = data_A$Passion_0,
+                        alpha = 1, nfolds = 10, family = "binomial",
+                        weights = wghts
+                        )
+
+  glmmod <- glmnet(x = x,
+                   y = data_A$Passion_0,
+                   alpha = 1,
+                   family = 'binomial',
+                   weights = wghts,
+                   lambda =  kcvLasso$lambda.1se)
+  
+  pred <- predict(glmmod, type = "coefficients")
+  
+  coeff.df[pred@i + 1, b] <- pred@x
+}
+
+
+test <- data.frame(matrix(0, nrow = 29, ncol = 1))
+rownames(test) <- rownames(coeff.df)
+test[,1] <- rowMeans(coeff.df)
+colnames(test) <- "Average value of coeff."
+test <- add_column(test, Repetitions = apply(coeff.df, 1, function(x) sum(x != 0)))
+Matrix::Matrix(as.matrix(test), sparse = TRUE)
+
+
+
+##### B) Lasso applied to Basic_passion
+
+
+
+formula.lasso.2 <- Basic_passion ~ TSigA_group + TempA_group2 + KSigA_group + KeyA + ModeA + fl + ob + hn + tp
+
+x.2 <- model.matrix(formula.lasso.2, data = data_A)[,-1]
+
+set.seed(28)
+
+kcvLasso <- cv.glmnet(x = x.2,
+                      y = data_A$Basic_passion,
+                      alpha = 1, nfolds = 10, family = "multinomial",
+                      # weights = wghts
+                      )
+
+glmmod <- glmnet(x = x.2,
+                 y = data_A$Basic_passion,
+                 alpha = 1,
+                 family = 'multinomial',
+                 # weights = wghts,
+                 lambda =  kcvLasso$lambda.1se
+                 )
+
+pred <- predict(glmmod, type = "coefficients")
+
+
+
+B <- 100 # Number of iterations
+
+coeff.df.2 <- list("desire" = data.frame(matrix(0, nrow = dim(x)[2] + 1, ncol = B)),
+                   "hatred" = data.frame(matrix(0, nrow = dim(x)[2] + 1, ncol = B)),
+                   "joy" = data.frame(matrix(0, nrow = dim(x)[2] + 1, ncol = B)),
+                   "love" = data.frame(matrix(0, nrow = dim(x)[2] + 1, ncol = B)),
+                   "sadness" = data.frame(matrix(0, nrow = dim(x)[2] + 1, ncol = B)),
+                   "wonder" = data.frame(matrix(0, nrow = dim(x)[2] + 1, ncol = B)))
+
+
+
+
+rownames(coeff.df.2$desire) <- c("Intercept", glmmod$beta$desire@Dimnames[[1]])
+rownames(coeff.df.2$hatred) <- c("Intercept", glmmod$beta$desire@Dimnames[[1]])
+rownames(coeff.df.2$joy) <- c("Intercept", glmmod$beta$desire@Dimnames[[1]])
+rownames(coeff.df.2$love) <- c("Intercept", glmmod$beta$desire@Dimnames[[1]])
+rownames(coeff.df.2$sadness) <- c("Intercept", glmmod$beta$desire@Dimnames[[1]])
+rownames(coeff.df.2$wonder) <- c("Intercept", glmmod$beta$desire@Dimnames[[1]])
+colnames(coeff.df.2$desire) <- 1:100
+colnames(coeff.df.2$hatred) <- 1:100
+colnames(coeff.df.2$joy) <- 1:100
+colnames(coeff.df.2$love) <- 1:100
+colnames(coeff.df.2$sadness) <- 1:100
+colnames(coeff.df.2$wonder) <- 1:100
+
+set.seed(8)
+
+for(b in 1:B){
+  kcvLasso <- cv.glmnet(x = x.2,
+                      y = data_A$Basic_passion,
+                      alpha = 1, nfolds = 10, family = "multinomial",
+                      )
+  glmmod <- glmnet(x = x.2,
+                   y = data_A$Basic_passion,
+                   alpha = 1,
+                   family = 'multinomial',
+                   lambda =  kcvLasso$lambda.1se
+                   )
+  
+  pred <- predict(glmmod, type = "coefficients")
+  
+  coeff.df.2$desire[pred$desire@i + 1, b] <- pred$desire@x
+  coeff.df.2$hatred[pred$hatred@i + 1, b] <- pred$hatred@x
+  coeff.df.2$joy[pred$joy@i + 1, b] <- pred$joy@x
+  coeff.df.2$love[pred$love@i + 1, b] <- pred$love@x
+  coeff.df.2$sadness[pred$sadness@i + 1, b] <- pred$sadness@x
+  coeff.df.2$wonder[pred$wonder@i + 1, b] <- pred$wonder@x
+}
+
+
+test <- data.frame(matrix(0, nrow = 29, ncol = 12))
+rownames(test) <- rownames(coeff.df.2$desire)
+test[,1] <- rowMeans(coeff.df.2$desire)
+test[,2] <- apply(coeff.df.2$desire, 1, function(x) sum(x != 0))
+test[,3] <- rowMeans(coeff.df.2$hatred)
+test[,4] <- apply(coeff.df.2$hatred, 1, function(x) sum(x != 0))
+test[,5] <- rowMeans(coeff.df.2$joy)
+test[,6] <- apply(coeff.df.2$joy, 1, function(x) sum(x != 0))
+test[,7] <- rowMeans(coeff.df.2$love)
+test[,8] <- apply(coeff.df.2$love, 1, function(x) sum(x != 0))
+test[,9] <- rowMeans(coeff.df.2$sadness)
+test[,10] <- apply(coeff.df.2$sadness, 1, function(x) sum(x != 0))
+test[,11] <- rowMeans(coeff.df.2$wonder)
+test[,12] <- apply(coeff.df.2$wonder, 1, function(x) sum(x != 0))
+colnames(test) <- c("desire", "rep.", "hatred", "rep.", "joy", "rep.",
+                    "love", "rep.", "sadness", "rep.", "wonder", "rep.")
+
+round(Matrix::Matrix(as.matrix(test), sparse = TRUE)[,11:12],4)
+```
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for Lasso applied to variables of A + differences
+##### ------------------------------------------------- #####
+
+data_Adiff <- dplyr::select(data_2, -c(TSigA, TempA.con, `5th_A`, d_TSig, TSigB, TSigB_group, TempB.con,
+                                       TempB_group2, KSigB_group, `5th_B`, ModeB))
+
+# Remove pieces with no part B. 
+data_Adiff <- dplyr::slice(data_Adiff, -which(is.na(data_Adiff$d_TSig_group)))
+
+
+formula.lasso.3 <- Passion_0 ~ TSigA_group + TempA_group2 + KSigA_group + KeyA + ModeA + d_TSig_group + ch_Temp + d_KSig_group + ch_Mode + HarmFunction + fl + ob + hn + tp
+
+x.3 <- model.matrix(formula.lasso.3, data = data_Adiff)[,-1]
+
+wghts.2 <- ifelse(data_Adiff$Passion_0 == "Positive",
+                unname(table(data_Adiff$Passion_0)[1]/dim(data_Adiff)[1]),
+                unname(table(data_Adiff$Passion_0)[2]/dim(data_Adiff)[1]))
+
+set.seed(28)
+
+kcvLasso <- cv.glmnet(x = x.3,
+                      y = data_Adiff$Passion_0,
+                      alpha = 1, nfolds = 10, family = "binomial",
+                      weights = wghts.2
+                      )
+
+glmmod <- glmnet(x = x.3,
+                 y = data_Adiff$Passion_0,
+                 alpha = 1,
+                 family = 'binomial',
+                 weights = wghts.2,
+                 lambda =  kcvLasso$lambda.1se
+                 )
+
+B <- 50 # Number of iterations
+
+coeff.df.3 <- data.frame(matrix(0, nrow = dim(x.3)[2] + 1, ncol = B))
+rownames(coeff.df.3) <- c("Intercept", glmmod$beta@Dimnames[[1]])
+colnames(coeff.df.3) <- 1:50
+
+set.seed(8)
+
+for(b in 1:B){
+  kcvLasso <- cv.glmnet(x = x.3,
+                        y = data_Adiff$Passion_0,
+                        alpha = 1, nfolds = 10, family = "binomial",
+                        weights = wghts.2
+                        )
+
+  glmmod <- glmnet(x = x.3,
+                   y = data_Adiff$Passion_0,
+                   alpha = 1,
+                   family = 'binomial',
+                   weights = wghts.2,
+                   lambda =  kcvLasso$lambda.1se)
+  
+  pred <- predict(glmmod, type = "coefficients")
+  
+  coeff.df.3[pred@i + 1, b] <- pred@x
+}
+
+
+
+test <- data.frame(matrix(0, nrow = 53, ncol = 2))
+rownames(test) <- rownames(coeff.df.3)
+test[,1] <- rowMeans(coeff.df.3)
+test[,2] <- apply(coeff.df.3, 1, function(x) sum(x != 0))
+colnames(test) <- c("Average value of coeff.", "Repetitions")
+
+Matrix::Matrix(round(as.matrix(test),5), sparse = TRUE)
+```
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for predicting with Logistic regression.
+##### ------------------------------------------------- #####
+
+##### A) Applied to data_A: variables of part A only.
+
+library(caret)
+
+K = 50
+
+set.seed(8)
+
+partitions <- caret::createDataPartition(y = dplyr::select(data_A, -Basic_passion)$Passion_0,
+                                         times = K,
+                                         p = 0.7)
+
+x <- model.matrix(formula.lasso.1, data = data_A)[,-1]
+
+acc <- rep(0, K)
+
+
+
+for(k in 1:K){
+  wghts <- ifelse(data_A$Passion_0[partitions[[k]]] == "Positive",
+                unname(table(data_A$Passion_0[partitions[[k]]])[1]/dim(data_A[partitions[[k]],])[1]),
+                unname(table(data_A$Passion_0[partitions[[k]]])[2]/dim(data_A[partitions[[k]],])[1]))
+  
+  kcvLasso <- cv.glmnet(x = x[partitions[[k]],],
+                      y = data_A$Passion_0[partitions[[k]]],
+                      alpha = 1, nfolds = 10, family = "binomial",
+                      weights = wghts
+                      )
+
+  glmmod <- glmnet(x = x[partitions[[k]],],
+                   y = data_A$Passion_0[partitions[[k]]],
+                   alpha = 1,
+                   family = 'binomial',
+                   weights = wghts,
+                   lambda =  kcvLasso$lambda.1se
+                   )
+
+  M <- table(predict(glmmod, newx = x[-partitions[[k]],], type = "class"),
+             data_A$Passion_0[-partitions[[k]]], dnn = c("Predicted", "Real"))
+  
+  acc[k] <- sum(diag(M))/sum(M)
+}
+
+
+
+#####B) Applied to data_Adiff: variables of part A and difference variables.
+
+set.seed(8)
+
+partitions.2 <- caret::createDataPartition(y = dplyr::select(data_Adiff, -Basic_passion)$Passion_0,
+                                           times = K,
+                                           p = 0.7)
+
+x.3 <- model.matrix(formula.lasso.3, data = data_Adiff)[,-1]
+
+acc.2 <- rep(0, K)
+
+for(k in 1:K){
+  wghts <- ifelse(data_Adiff$Passion_0[partitions.2[[k]]] == "Positive",
+                unname(table(data_Adiff$Passion_0[partitions.2[[k]]])[1]/dim(data_Adiff[partitions.2[[k]],])[1]),
+                unname(table(data_Adiff$Passion_0[partitions.2[[k]]])[2]/dim(data_Adiff[partitions.2[[k]],])[1]))
+  
+  kcvLasso <- cv.glmnet(x = x.3[partitions.2[[k]],],
+                      y = data_Adiff$Passion_0[partitions.2[[k]]],
+                      alpha = 1, nfolds = 10, family = "binomial",
+                      weights = wghts
+                      )
+
+  glmmod <- glmnet(x = x.3[partitions.2[[k]],],
+                   y = data_Adiff$Passion_0[partitions.2[[k]]],
+                   alpha = 1,
+                   family = 'binomial',
+                   weights = wghts,
+                   lambda =  kcvLasso$lambda.1se
+                   )
+
+  M <- table(predict(glmmod, newx = x.3[-partitions.2[[k]],], type = "class"),
+             data_Adiff$Passion_0[-partitions.2[[k]]], dnn = c("Predicted", "Real"))
+  
+  acc.2[k] <- sum(diag(M))/sum(M)
+}
+
+
+accuracies <- c(acc, acc.2)
+accuracies <- cbind(accuracies, c(rep("acc.A", times = 50), rep("acc.A.diff", times = 50)))
+accuracies <- as.data.frame(accuracies)
+accuracies <- dplyr::mutate(accuracies, accuracies = as.numeric(accuracies))
+
+ggplot(data = accuracies) + 
+  geom_boxplot(aes(x = accuracies, y = V2), fill = c("deepskyblue3", "goldenrod2"), size = 1) + 
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        plot.title = element_text(face = "bold", size = 9, hjust = 0)) +
+  geom_jitter(aes(x = accuracies, y = V2), color = "black", size = 0.7) +
+  labs(y = "", x = "Accuracy (logistic regression)") 
+```
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for classifying with Multinomial regression.
+##### ------------------------------------------------- #####
+
+
+
+K = 10
+
+set.seed(8)
+
+# Initialize for variables of part A.
+
+partitions <- caret::createDataPartition(y = dplyr::select(data_A, -Passion_0)$Basic_passion,
+                                         times = K,
+                                         p = 0.7)
+
+x <- model.matrix(formula.lasso.2, data = data_A)[,-1]
+
+
+# Initialize for data set with variables of part A and differences. 
+
+partitions.2 <- caret::createDataPartition(y = dplyr::select(data_Adiff, -Passion_0)$Basic_passion,
+                                           times = K,
+                                           p = 0.7)
+
+formula.lasso.4 <- Basic_passion ~ TSigA_group + TempA_group2 + KSigA_group + KeyA + ModeA + d_TSig_group + ch_Temp + d_KSig_group + ch_Mode + HarmFunction + fl + ob + hn + tp
+
+x.2 <- model.matrix(formula.lasso.4, data = data_Adiff)[,-1]
+
+# Data frame to save the values of accuracy. 
+
+accuracies <- data.frame(matrix(0, ncol = 2, nrow = K))
+
+
+for(k in 1:K){
+  # For variables of part A:
+  
+  kcvLasso <- cv.glmnet(x = x[partitions[[k]],],
+                        y = data_A$Basic_passion[partitions[[k]]],
+                        alpha = 1, nfolds = 10, family = "multinomial"
+                        )
+
+  glmmod <- glmnet(x = x[partitions[[k]],],
+                   y = data_A$Basic_passion[partitions[[k]]],
+                   alpha = 1,
+                   family = 'multinomial',
+                   lambda =  kcvLasso$lambda.1se
+                   )
+
+  M <- table(predict(glmmod, newx = x[-partitions[[k]],], type = "class"),
+             data_A$Basic_passion[-partitions[[k]]], dnn = c("Predicted", "Real"))
+  
+  accuracies[k, 1] <- sum(diag(M))/sum(M)
+  
+  
+  # For variables of part A and differences: 
+  
+  kcvLasso.2 <- cv.glmnet(x = x.2[partitions.2[[k]],],
+                          y = data_Adiff$Basic_passion[partitions.2[[k]]],
+                          alpha = 1, nfolds = 10, family = "multinomial"
+                          )
+
+  glmmod.2 <- glmnet(x = x.2[partitions.2[[k]],],
+                   y = data_Adiff$Basic_passion[partitions.2[[k]]],
+                   alpha = 1,
+                   family = 'multinomial',
+                   lambda =  kcvLasso.2$lambda.1se
+                   )
+
+  M.2 <- table(predict(glmmod.2, newx = x.2[-partitions.2[[k]],], type = "class"),
+               data_Adiff$Basic_passion[-partitions.2[[k]]], dnn = c("Predicted", "Real"))
+  
+  accuracies[k, 2] <- sum(diag(M.2))/sum(M.2)
+}
+
+
+accuracies <- c(accuracies$X1, accuracies$X2)
+accuracies <- cbind(accuracies, c(rep("acc.A", times = 10), rep("acc.A.diff", times = 10)))
+accuracies <- as.data.frame(accuracies)
+accuracies <- dplyr::mutate(accuracies, accuracies = as.numeric(accuracies))
+
+
+
+ggplot(data = accuracies) + 
+  geom_boxplot(aes(x = accuracies, y = V2), fill = c("deepskyblue3", "goldenrod2"), size = 1) + 
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.title = element_text(face = "bold.italic"),
+        plot.title = element_text(face = "bold", size = 9, hjust = 0)) +
+  geom_jitter(aes(x = accuracies, y = V2), color = "black", size = 0.7) +
+  labs(y = "", x = "Accuracy (multinomial regression)") 
+```
+
+
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for Multiple Correspondence Analysis (MCA)
+##### ------------------------------------------------- #####
+
+library(DiscriMiner)
+
+dim(DiscriMiner::binarize(dplyr::select(data_A, -c(Passion_0, Basic_passion, TempA.con, `5th_A`))))
+
+dim(sparse.model.matrix(Passion_0~., dplyr::select(data_A, -c(Basic_passion, TempA.con, `5th_A`))))[2] - 1
+# 28 total number of categories. We have dimension 28 in our problem --> with only variables of part A.
+
+library(FactoMineR)
+library(factoextra)
+
+data_cat_A_mca <- MCA(X = dplyr::select(data_A, -c(Passion_0, Basic_passion, TempA.con, `5th_A`)),
+                      ncp = 20, graph = FALSE)
+
+data_cat_A_mca$eig
+fviz_screeplot(data_cat_A_mca, addlabels = TRUE, ylim = c(0, 9), ncp = 10)
+fviz_mca_biplot(data_cat_A_mca, 
+                ggtheme = theme_minimal())
+
+P1 <- fviz_contrib(data_cat_A_mca, choice = "var", axes = 1, top = 15, title = "")
+P2 <- fviz_contrib(data_cat_A_mca, choice = "var", axes = 2, top = 6, title = "")
+
+ggarrange(P1, P2, nrow = 1, ncol = 2, labels = c("A)","B)"))
+
+
+
+
+
+temp <- as.factor(as.numeric(data_A$KSigA_group)*(as.numeric(data_A$ModeA)+3))
+levels(temp) <- c("bb-m", "bb-M", "nn-m", "nn-M", "ss-m", "ss-M")
+
+
+mca_2D <- as.data.frame(data_cat_A_mca$ind$coord[,1:2])
+mca_2D <- add_column(mca_2D, category = temp)
+mca_2D <- dplyr::rename(mca_2D, `Dim 1 (8.6%)` = `Dim 1`)
+mca_2D <- dplyr::rename(mca_2D, `Dim 2 (7.3%)` = `Dim 2`)
+
+
+mca_2D %>% ggplot(aes(x = `Dim 1 (8.6%)`, y = `Dim 2 (7.3%)`, col = category)) + 
+  geom_point() + 
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        plot.title = element_text(face="bold", size = 9, hjust = 0)) +
+  labs(col = "Category")
+
+mca_2D %>% ggplot(aes(x = `Dim 1 (8.6%)`, y = `Dim 2 (7.3%)`, col = data_A$Basic_passion)) + 
+  geom_point() + 
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        plot.title = element_text(face="bold", size = 9, hjust = 0)) +
+  labs(col = "Basic passion")
+```
+
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for T-Stochastic Neighbor Embedding 
+##### ------------------------------------------------- #####
+
+library(Rtsne)
+
+set.seed(8)
+
+M = 10
+
+t.sne.trials <- vector(mode = "list", length = M)
+
+for(i in 1:M){
+  t.sne.trials[[i]] <- Rtsne(dplyr::select(data_A, -c(Basic_passion, Passion_0, TempA.con, `5th_A`)),
+               dims = 2, pca = FALSE, check_duplicates = FALSE, max_iter = 2500,
+               pca_center = FALSE, normalize = TRUE)
+}
+
+
+for(i in 1:M){
+  print(tail(t.sne.trials[[i]]$itercosts, n = 1))
+}
+
+# The 9-th one achieved the minimum value of the OF among the M = 10 trials. 
+
+
+ggplot(data = as.data.frame(t.sne.trials[[6]]$Y), aes(x = V1, y = V2)) + 
+  geom_point(aes(col = temp)) +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        plot.title = element_text(face = "bold", size = 9, hjust = 0)) +
+  labs(x = "Dim 1", y = "Dim 2", col = "Group")
+
+ggplot(data = as.data.frame(t.sne.trials[[6]]$Y), aes(x = V1, y = V2)) + 
+  geom_point(aes(col = data_A$Basic_passion)) +
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        plot.title = element_text(face = "bold", size = 9, hjust = 0)) +
+  labs(x = "Dim 1", y = "Dim 2", col = "Basic passion")
+```
+
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for classifying Passion_0 with LDA
+##### ------------------------------------------------- #####
+
+
+# Create the data set with the reduced variables by MCA.
+
+library(tidyverse)
+data_A_MCA <- as.data.frame(data_cat_A_mca$ind$coord)
+data_A_MCA <- add_column(data_A_MCA, Passion_0 = data_A$Passion_0) # Add Passion_0
+data_A_MCA <- add_column(data_A_MCA, Basic_passion = data_A$Basic_passion) # Add Basic_passion
+
+
+# Classifying with LDA.
+
+library(MASS)
+
+K = 50
+
+set.seed(8)
+
+partitions <- caret::createDataPartition(y = data_A_MCA$Passion_0,
+                                         times = K,
+                                         p = 0.7)
+
+accuracies_pas_0 <- as.data.frame(matrix(0, nrow = 6, ncol = K))
+
+set.seed(8)
+
+for(k in 1:K){
+  # Remove KeyA and include 5th_A. KeyA induces the following error: "variable 7 appears to be constant within groups". 
+  # I believe it is because the partition has one category with the same 
+  LDA <- lda(Passion_0 ~., 
+             data = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, KeyA)) %>% slice(partitions[[k]]))
+  M <- table(predict(LDA, 
+                     newdata = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, KeyA)) %>% slice(-partitions[[k]]))$class,
+             data_A$Passion_0[-partitions[[k]]],
+             dnn = c("Predicted", "Real"))
+  accuracies_pas_0[1, k] <- sum(diag(M))/sum(M)
+  
+  
+  LDA_mca <- lda(Passion_0 ~., 
+                 data = data_A_MCA %>% dplyr::select(-Basic_passion) %>% slice(partitions[[k]]))
+  M <- table(predict(LDA_mca, newdata = data_A_MCA %>% dplyr::select(-Basic_passion) %>% slice(-partitions[[k]]))$class,
+             data_A_MCA$Passion_0[-partitions[[k]]],
+             dnn = c("Predicted", "Real"))
+  accuracies_pas_0[2, k] <- sum(diag(M))/sum(M)
+}
+```
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for classifying Passion_0 with SVM
+##### ------------------------------------------------- #####
+
+library(e1071)
+
+set.seed(8)
+
+K = 15 # For LDA it was K = 50. This is more time consuming.
+
+for(k in 1:K){
+  # SVM for data_A.
+  
+  SVM_tune <- e1071::tune(svm, Passion_0 ~., 
+                          data = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[k]]),
+                          ranges = list(gamma = c(0.01,0.1,1), cost = c(1,3,5)),
+                          tunecontrol = tune.control(sampling = "cross", cross = 3, nrepeat = 3),
+                          # class.weights = c("Positive" = unname(table(data_A$Passion_0[partitions[[k]]])[1]/table(data_A$Passion_0[partitions[[k]]])[2]),
+                          #                   "Negative" = 1)
+                          )
+  
+  pred_SVM <- predict(SVM_tune$best.model,
+                      newdata = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(-partitions[[k]]))
+  
+  accuracies_pas_0[3, k] <- sum(diag(table(pred_SVM, data_A$Passion_0[-partitions[[k]]])))/sum(table(pred_SVM, data_A$Passion_0[-partitions[[k]]]))
+  
+  # SVM for data_A_MCA.
+  
+  SVM_tune2 <- e1071::tune(svm, Passion_0 ~.,
+                           data = data_A_MCA %>% dplyr::select(-Basic_passion) %>% slice(partitions[[k]]),
+                           ranges = list(gamma = c(0.01,0.1,1), cost = c(1,3,5)),
+                           tunecontrol = tune.control(sampling = "cross", cross = 3, nrepeat = 3),
+                           # class.weights = c("Positive" = unname(table(data_A$Passion_0[partitions[[k]]])[1]/table(data_A$Passion_0[partitions[[k]]])[2]),
+                           #                   "Negative" = 1)
+                           )
+
+  pred_SVM2 <- predict(SVM_tune2$best.model, newdata = data_A_MCA %>% dplyr::select(-Basic_passion) %>% slice(-partitions[[k]]))
+
+  accuracies_pas_0[4, k] <- sum(diag(table(pred_SVM2, data_A_MCA$Passion_0[-partitions[[k]]])))/sum(table(pred_SVM2, data_A_MCA$Passion_0[-partitions[[k]]]))
+}
+```
+
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for classifying Passion_0 with DWD (weighted)
+##### ------------------------------------------------- #####
+
+library(kerndwd)
+
+K = 50
+
+set.seed(8)
+
+for(k in 1:K){
+  # DWD applied to data_A.
+  
+  X <- data_A %>% dplyr::select(-c(Passion_0, Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[k]])
+  Xnew <- data_A %>% dplyr::select(-c(Passion_0, Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(-partitions[[k]])
+  
+  X <- mutate_if(X, is.factor, ~ as.numeric(as.factor(.x)))
+  Xnew <- mutate_if(Xnew, is.factor, ~ as.numeric(as.factor(.x)))
+  
+  weights <- ifelse(data_A$Passion_0[partitions[[k]]] == "Positive", table(data_A$Passion_0[partitions[[k]]])["Negative"]/dim(data_A[partitions[[k]],])[1], 
+                    table(data_A$Passion_0[partitions[[k]]])["Positive"]/dim(data_A[partitions[[k]],])[1])
+  
+  dwd_tune <- tunedwd(x = X, y = data_A$Passion_0[partitions[[k]]],
+                      lambda = 10^(seq(-3, 3, length.out=10)), 
+                      kern = vanilladot(),
+                      nfolds = 5,
+                      )
+  
+  dwd <- kerndwd(x = X, y = data_A$Passion_0[partitions[[k]]],
+                 lambda = dwd_tune$lam.tune, 
+                 kern = vanilladot(),
+                 wt = weights
+                 )
+  
+  pred_dwd <- predict(dwd, kern = vanilladot(), x = X, newx = Xnew, type = "class")
+  pred_dwd <- ifelse(pred_dwd == -1, "Negative", "Positive")
+  
+  M <- table(pred_dwd, data_A$Passion_0[-partitions[[k]]])
+  
+  accuracies_pas_0[5,k] <- sum(diag(M))/sum(M)
+  
+  # DWD applied to data_A_MCA.
+  
+  X.2 <- data_A_MCA %>% dplyr::select(-c(Passion_0, Basic_passion)) %>% dplyr::slice(partitions[[k]])
+  Xnew.2 <- data_A_MCA %>% dplyr::select(-c(Passion_0, Basic_passion)) %>% dplyr::slice(-partitions[[k]])
+  
+  dwd_tune.2 <- tunedwd(x = X.2, y = data_A_MCA$Passion_0[partitions[[k]]],
+                      lambda = 10^(seq(-3, 3, length.out=10)), 
+                      kern = vanilladot(),
+                      nfolds = 5,
+                      )
+  
+  dwd.2 <- kerndwd(x = X.2, y = data_A_MCA$Passion_0[partitions[[k]]],
+                 lambda = dwd_tune.2$lam.tune, 
+                 kern = vanilladot(),
+                 wt = weights
+                 )
+  
+  pred_dwd.2 <- predict(dwd.2, kern = vanilladot(), x = X.2, newx = Xnew.2, type = "class")
+  pred_dwd.2 <- ifelse(pred_dwd.2 == -1, "Negative", "Positive")
+  
+  M.2 <- table(pred_dwd.2, data_A_MCA$Passion_0[-partitions[[k]]])
+  
+  accuracies_pas_0[6,k] <- sum(diag(M.2))/sum(M)
+}
+```
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for displaying the contingency tables. 
+##### ------------------------------------------------- #####
+
+set.seed(8)
+
+LDA <- lda(Passion_0 ~., 
+             data = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, KeyA)) %>% slice(partitions[[1]]))
+M <- table(predict(LDA, 
+                   newdata = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, KeyA)) %>% slice(-partitions[[1]]))$class,
+           data_A$Passion_0[-partitions[[1]]],
+           dnn = c("Predicted", "Real"))
+print(M)
+
+
+LDA_mca <- lda(Passion_0 ~., 
+               data = data_A_MCA %>% dplyr::select(-Basic_passion) %>% slice(partitions[[1]]))
+M <- table(predict(LDA_mca, newdata = data_A_MCA %>% dplyr::select(-Basic_passion) %>% slice(-partitions[[1]]))$class,
+           data_A_MCA$Passion_0[-partitions[[1]]],
+           dnn = c("Predicted", "Real"))
+print(M)
+
+
+
+SVM_tune <- e1071::tune(svm, Passion_0 ~., 
+                          data = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[1]]),
+                          ranges = list(gamma = c(0.01,0.1,1), cost = c(1,3,5)),
+                          tunecontrol = tune.control(sampling = "cross", cross = 3, nrepeat = 3),
+                          # class.weights = c("Positive" = unname(table(data_A$Passion_0[partitions[[1]]])[1]/table(data_A$Passion_0[partitions[[1]]])[2]),
+                          #                   "Negative" = 1)
+                          )
+  
+pred_SVM <- predict(SVM_tune$best.model,
+                    newdata = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(-partitions[[1]]))
+
+print(table(pred_SVM, data_A$Passion_0[-partitions[[1]]]))
+
+# SVM for data_A_MCA.
+
+SVM_tune2 <- e1071::tune(svm, Passion_0 ~.,
+                         data = data_A_MCA %>% dplyr::select(-Basic_passion) %>% slice(partitions[[1]]),
+                         ranges = list(gamma = c(0.01,0.1,1), cost = c(1,3,5)),
+                         tunecontrol = tune.control(sampling = "cross", cross = 3, nrepeat = 3),
+                         # class.weights = c("Positive" = unname(table(data_A$Passion_0[partitions[[1]]])[1]/table(data_A$Passion_0[partitions[[1]]])[2]),
+                         #                   "Negative" = 1)
+                         )
+
+pred_SVM2 <- predict(SVM_tune2$best.model, newdata = data_A_MCA %>% dplyr::select(-Basic_passion) %>% slice(-partitions[[1]]))
+
+print(table(pred_SVM2, data_A_MCA$Passion_0[-partitions[[1]]]))
+
+
+
+
+X <- data_A %>% dplyr::select(-c(Passion_0, Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[1]])
+Xnew <- data_A %>% dplyr::select(-c(Passion_0, Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(-partitions[[1]])
+
+X <- mutate_if(X, is.factor, ~ as.numeric(as.factor(.x)))
+Xnew <- mutate_if(Xnew, is.factor, ~ as.numeric(as.factor(.x)))
+
+weights <- ifelse(data_A$Passion_0[partitions[[1]]] == "Positive", table(data_A$Passion_0[partitions[[1]]])["Negative"]/dim(data_A[partitions[[1]],])[1], 
+                  table(data_A$Passion_0[partitions[[1]]])["Positive"]/dim(data_A[partitions[[1]],])[1])
+
+dwd_tune <- tunedwd(x = X, y = data_A$Passion_0[partitions[[1]]],
+                    lambda = 10^(seq(-3, 3, length.out=10)), 
+                    kern = vanilladot(),
+                    nfolds = 5,
+                    )
+
+dwd <- kerndwd(x = X, y = data_A$Passion_0[partitions[[1]]],
+               lambda = dwd_tune$lam.tune, 
+               kern = vanilladot(),
+               wt = weights
+               )
+
+pred_dwd <- predict(dwd, kern = vanilladot(), x = X, newx = Xnew, type = "class")
+pred_dwd <- ifelse(pred_dwd == -1, "Negative", "Positive")
+
+print(table(pred_dwd, data_A$Passion_0[-partitions[[1]]]))
+
+# DWD applied to data_A_MCA.
+
+X.2 <- data_A_MCA %>% dplyr::select(-c(Passion_0, Basic_passion)) %>% dplyr::slice(partitions[[1]])
+Xnew.2 <- data_A_MCA %>% dplyr::select(-c(Passion_0, Basic_passion)) %>% dplyr::slice(-partitions[[1]])
+
+dwd_tune.2 <- tunedwd(x = X.2, y = data_A_MCA$Passion_0[partitions[[1]]],
+                    lambda = 10^(seq(-3, 3, length.out=10)), 
+                    kern = vanilladot(),
+                    nfolds = 5,
+                    )
+
+dwd.2 <- kerndwd(x = X.2, y = data_A_MCA$Passion_0[partitions[[1]]],
+               lambda = dwd_tune.2$lam.tune, 
+               kern = vanilladot(),
+               wt = weights
+               )
+
+pred_dwd.2 <- predict(dwd.2, kern = vanilladot(), x = X.2, newx = Xnew.2, type = "class")
+pred_dwd.2 <- ifelse(pred_dwd.2 == -1, "Negative", "Positive")
+
+print(table(pred_dwd.2, data_A_MCA$Passion_0[-partitions[[1]]]))
+```
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for plotting the accuracy for the separation methods.
+##### ------------------------------------------------- #####
+
+temp <- gather(accuracies_pas_0)
+labs <- c("LDA + \"A\"-section \n variables",
+          "LDA + variables \n from MCA",
+          "SVM + \"A\"-section \n variables",
+          "SVM + variables \n from MCA",
+          "DWD + \"A\"-section \n variables",
+          "DWD + variables \n from MCA")
+
+temp$key <- rep(labs, 50)
+
+temp <- dplyr::slice(temp, -which(temp$value == 0))
+
+temp$key <- factor(temp$key, levels = labs)
+
+ggplot(data = temp, aes(x = value, y = key, fill = key)) +
+  geom_boxplot() + 
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.position = "None",
+        plot.title = element_text(face = "bold", size = 9, hjust = 0)) +
+  geom_jitter(aes(x = value, y = key), color = "black", size = 0.7) +
+  labs(fill = "Setting", y = "", x = "Accuracy")
+```
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for classifying Basic_passion with LDA
+##### ------------------------------------------------- #####
+
+K = 50
+
+set.seed(8)
+
+partitions.2 <- caret::createDataPartition(y = data_A_MCA$Basic_passion,
+                                           times = K,
+                                           p = 0.7)
+
+accuracies_basic <- as.data.frame(matrix(0, nrow = 4, ncol = K))
+
+set.seed(8)
+
+for(k in 1:K){
+  # Remove KeyA and include 5th_A. KeyA induces the following error: "variable 7 appears to be constant within groups". 
+  # I believe it is because the partition has one category with the same 
+  LDA <- lda(Basic_passion ~., 
+             data = data_A %>% dplyr::select(-c(Passion_0, TempA.con, KeyA)) %>% slice(partitions.2[[k]]))
+  M <- table(predict(LDA, 
+                     newdata = data_A %>% dplyr::select(-c(Passion_0, TempA.con, KeyA)) %>% slice(-partitions.2[[k]]))$class,
+             data_A$Passion_0[-partitions.2[[k]]],
+             dnn = c("Predicted", "Real"))
+  accuracies_basic[1, k] <- sum(diag(M))/sum(M)
+  
+  
+  LDA_mca <- lda(Basic_passion ~., 
+                 data = data_A_MCA %>% dplyr::select(-Passion_0) %>% slice(partitions.2[[k]]))
+  M <- table(predict(LDA_mca, newdata = data_A_MCA %>% dplyr::select(-Passion_0) %>% slice(-partitions.2[[k]]))$class,
+             data_A_MCA$Passion_0[-partitions.2[[k]]],
+             dnn = c("Predicted", "Real"))
+  accuracies_basic[2, k] <- sum(diag(M))/sum(M)
+}
+```
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for classifying Basic_passion with SVM
+##### ------------------------------------------------- #####
+
+# I do not include weighted classes since the results are worse. 
+
+set.seed(8)
+
+K = 15 # For LDA it was K = 50. This is more time consuming.
+
+for(k in 1:K){
+  # SVM for data_A.
+  
+  SVM_tune <- e1071::tune(svm, Basic_passion ~., 
+                          data = data_A %>% dplyr::select(-c(Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[k]]),
+                          ranges = list(gamma = c(0.01,0.1,1), cost = c(1,3,5)),
+                          tunecontrol = tune.control(sampling = "cross", cross = 3, nrepeat = 3),
+                          )
+  
+  pred_SVM <- predict(SVM_tune$best.model,
+                      newdata = data_A %>% dplyr::select(-c(Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(-partitions[[k]]))
+  
+  accuracies_basic[3, k] <- sum(diag(table(pred_SVM, data_A$Basic_passion[-partitions[[k]]])))/sum(table(pred_SVM, data_A$Basic_passion[-partitions[[k]]]))
+  
+  # SVM for data_A_MCA.
+  
+  SVM_tune2 <- e1071::tune(svm, Basic_passion ~.,
+                           data = data_A_MCA %>% dplyr::select(-Passion_0) %>% slice(partitions[[k]]),
+                           ranges = list(gamma = c(0.01,0.1,1), cost = c(1,3,5)),
+                           tunecontrol = tune.control(sampling = "cross", cross = 3, nrepeat = 3),
+                           )
+
+  pred_SVM2 <- predict(SVM_tune2$best.model, newdata = data_A_MCA %>% dplyr::select(-Passion_0) %>% slice(-partitions[[k]]))
+
+  accuracies_basic[4, k] <- sum(diag(table(pred_SVM2, data_A_MCA$Basic_passion[-partitions[[k]]])))/sum(table(pred_SVM2, data_A_MCA$Basic_passion[-partitions[[k]]]))
+}
+```
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for plotting the accuracy for the separation methods (in terms of Basic_passion)
+##### ------------------------------------------------- #####
+
+temp <- gather(accuracies_basic)
+labs <- c("LDA + \"A\"-section \n variables",
+          "LDA + variables \n from MCA",
+          "SVM + \"A\"-section \n variables",
+          "SVM + variables \n from MCA")
+
+temp$key <- rep(labs, 50)
+
+temp <- dplyr::slice(temp, -which(temp$value == 0))
+
+temp$key <- factor(temp$key, levels = labs)
+
+
+ggplot(data = temp, aes(x = value, y = key, fill = key)) +
+  geom_boxplot() + 
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.position = "None",
+        plot.title = element_text(face = "bold", size = 9, hjust = 0)) +
+  geom_jitter(aes(x = value, y = key), color = "black", size = 0.7) +
+  labs(fill = "Setting", y = "", x = "Accuracy")
+```
+
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for displaying the contingency tables. 
+##### ------------------------------------------------- #####
+
+set.seed(8)
+
+LDA <- lda(Basic_passion ~., 
+           data = data_A %>% dplyr::select(-c(Passion_0, TempA.con, KeyA)) %>% slice(partitions[[1]]))
+M <- table(predict(LDA, 
+                   newdata = data_A %>% dplyr::select(-c(Passion_0, TempA.con, KeyA)) %>% slice(-partitions[[1]]))$class,
+           data_A$Basic_passion[-partitions[[1]]],
+           dnn = c("Predicted", "Real"))
+print(M)
+
+
+LDA_mca <- lda(Basic_passion ~., 
+               data = data_A_MCA %>% dplyr::select(-Passion_0) %>% slice(partitions[[1]]))
+M <- table(predict(LDA_mca, newdata = data_A_MCA %>% dplyr::select(-Passion_0) %>% slice(-partitions[[1]]))$class,
+           data_A_MCA$Basic_passion[-partitions[[1]]],
+           dnn = c("Predicted", "Real"))
+print(M)
+
+
+
+
+SVM_tune <- e1071::tune(svm, Basic_passion ~., 
+                        data = data_A %>% dplyr::select(-c(Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[1]]),
+                        ranges = list(gamma = c(0.01,0.1,1), cost = c(1,3,5)),
+                        tunecontrol = tune.control(sampling = "cross", cross = 3, nrepeat = 3),
+                        )
+  
+pred_SVM <- predict(SVM_tune$best.model,
+                    newdata = data_A %>% dplyr::select(-c(Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(-partitions[[1]]))
+
+M <- table(pred_SVM, data_A$Basic_passion[-partitions[[1]]])
+
+
+SVM_tune2 <- e1071::tune(svm, Basic_passion ~.,
+                         data = data_A_MCA %>% dplyr::select(-Passion_0) %>% slice(partitions[[1]]),
+                         ranges = list(gamma = c(0.01,0.1,1), cost = c(1,3,5)),
+                         tunecontrol = tune.control(sampling = "cross", cross = 3, nrepeat = 3),
+                         )
+
+pred_SVM2 <- predict(SVM_tune2$best.model, newdata = data_A_MCA %>% dplyr::select(-Passion_0) %>% slice(-partitions[[1]]))
+
+M <- table(pred_SVM2, data_A_MCA$Basic_passion[-partitions[[1]]])
+```
+
+
+
+
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for classifying Passion_0 with RF
+##### ------------------------------------------------- #####
+
+
+library(caret)
+library(doParallel)
+
+registerDoParallel(cores = 4)
+ctrl <- trainControl(method = "repeatedcv",
+                     number = 3, repeats = 3, 
+                     allowParallel = TRUE)
+
+
+
+set.seed(8)
+
+K = 20
+
+accuracies_ml_pas_0 <- as.data.frame(matrix(0, nrow = 5, ncol = K))
+
+
+for(k in 1:K){
+  
+  # Classification with RF and data_A.
+  
+  rf_tune <- train(Passion_0 ~., 
+                   data = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[k]]),
+                   method = "rf",
+                   preProc = c('scale','center'),
+                   trControl = ctrl,
+                   ntree = 500,
+                   tuneGrid = data.frame(mtry = c(3,5,7))
+                   )
+  
+  pred_rf <- predict(rf_tune, 
+                     newdata = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(-partitions[[k]]))
+  
+  M <- table(pred_rf, data_A$Passion_0[-partitions[[k]]])
+  
+  accuracies_ml_pas_0[1,k] <- sum(diag(M))/sum(M)
+}
+
+set.seed(8)
+
+for(k in 1:K){
+    
+  # Classification with RF and data_A_MCA.
+  
+  rf_tune <- train(Passion_0 ~., 
+                   data = data_A_MCA %>% dplyr::select(-Basic_passion) %>% dplyr::slice(partitions[[k]]),
+                   method = "rf",
+                   preProc = c('scale','center'),
+                   trControl = ctrl,
+                   ntree = 500,
+                   tuneGrid = data.frame(mtry = c(5,7,9))
+                   )
+  
+  pred_rf <- predict(rf_tune, 
+                     newdata = data_A_MCA %>% dplyr::select(-Basic_passion) %>% dplyr::slice(-partitions[[k]]))
+  
+  M <- table(pred_rf, data_A_MCA$Passion_0[-partitions[[k]]])
+  
+  accuracies_ml_pas_0[2,k] <- sum(diag(M))/sum(M)
+}
+
+```
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for classifying Passion_0 with XGBoost
+##### ------------------------------------------------- #####
+
+
+# I have performed a previous tuning of the hyper-parameters for split number 1 of the "partitions" list. 
+# Every time I work with XGB I perform a preliminary tune of the hyper-parameters and then I leave the max_depth hyper parameter with a grid in the iterating loop.
+
+
+# xgb_tune <- train(Passion_0 ~., 
+#                   data = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[k]]),
+#                   method = "xgbTree",
+#                   preProc = c('scale','center'),
+#                   metric = "Accuracy",
+#                   trControl = ctrl,
+#                   tuneGrid = expand.grid(nrounds = c(100), max_depth = c(2,3,4), eta = c(0.01, 0.05, 0.1),
+#                                          gamma = c(0.1,1,10), colsample_bytree = c(0.5),
+#                                          min_child_weight = c(0.1, 0.5), subsample = c(0.1, 0.5, 0.7)))
+
+
+K = 20
+
+set.seed(8)
+
+for(k in 1:K){
+  
+  # Classification with XGBoost and data_A.
+  
+  xgb_tune <- train(Passion_0 ~., 
+                    data = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[k]]),
+                    method = "xgbTree",
+                    preProc = c('scale','center'),
+                    metric = "Accuracy",
+                    trControl = ctrl,
+                    tuneGrid = expand.grid(nrounds = c(500), max_depth = c(2,4,6), eta = c(0.01),
+                                           gamma = c(1), colsample_bytree = c(0.5),
+                                           min_child_weight = c(0.5), subsample = c(0.5)))
+  
+  pred_xgb <- predict(xgb_tune, 
+                      newdata = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(-partitions[[k]]))
+  
+  M <- table(pred_xgb, data_A$Passion_0[-partitions[[k]]])
+  
+  accuracies_ml_pas_0[3,k] <- sum(diag(M))/sum(M)
+}
+
+set.seed(8)
+
+for(k in 1:K){
+  
+  # Classification with XGBoost and data_A_MCA.
+  
+  xgb_tune <- train(Passion_0 ~., 
+                    data = data_A_MCA %>% dplyr::select(-Basic_passion) %>% dplyr::slice(partitions[[k]]),
+                    method = "xgbTree",
+                    preProc = c('scale','center'),
+                    metric = "Accuracy",
+                    trControl = ctrl,
+                    tuneGrid = expand.grid(nrounds = c(500), max_depth = c(2,4,6), eta = c(0.001),
+                                           gamma = c(1), colsample_bytree = c(0.5),
+                                           min_child_weight = c(0.1), subsample = c(0.4)))
+  
+  pred_xgb <- predict(xgb_tune, 
+                      newdata = data_A_MCA %>% dplyr::select(-Basic_passion) %>% dplyr::slice(-partitions[[k]]))
+  
+  M <- table(pred_xgb, data_A_MCA$Passion_0[-partitions[[k]]])
+  
+  accuracies_ml_pas_0[4,k] <- sum(diag(M))/sum(M)
+}
+```
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for classifying Passion_0 with KNN
+# Only for data_A_MCA: there is not an implementation for gower distance.
+# Not knngow --> not in CRAN anymore. 
+##### ------------------------------------------------- #####
+
+
+# Preliminary setting for the tuning.
+
+# knn_tune <- train(Passion_0 ~., 
+#                     data = data_A_MCA %>% dplyr::select(-Basic_passion) %>% dplyr::slice(partitions[[k]]),
+#                     method = "kknn",   
+#                     preProc = c('scale','center'),
+#                     tuneGrid = expand.grid(kmax = c(13, 15, 17),
+#                                            distance = c(0.5,1,2,4), 
+#                                            kernel = "optimal"),
+#                     metric = "Accuracy",
+#                     trControl = ctrl)
+
+K = 20
+
+set.seed(8)
+
+for(k in 1:K){
+  knn_tune <- train(Passion_0 ~., 
+                    data = data_A_MCA %>% dplyr::select(-Basic_passion) %>% dplyr::slice(partitions[[k]]),
+                    method = "kknn",   
+                    preProc = c('scale','center'),
+                    tuneGrid = expand.grid(kmax = c(15),
+                                           distance = c(0.5,1,2,4), 
+                                           kernel = "optimal"),
+                    metric = "Accuracy",
+                    trControl = ctrl)
+  
+  pred_knn <- predict(knn_tune, newdata = data_A_MCA %>% dplyr::select(-Basic_passion) %>% dplyr::slice(-partitions[[k]]))
+  
+  M <- table(pred_knn, data_A_MCA$Passion_0[-partitions[[k]]])
+  
+  accuracies_ml_pas_0[5,k] <- sum(diag(M))/sum(M)
+}
+```
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for plotting the accuracy for ML classification methods
+# based on Passion_0
+##### ------------------------------------------------- #####
+
+temp <- gather(accuracies_ml_pas_0)
+labs <- c("RF + \"A\"-section \n variables",
+          "RF + variables \n from MCA",
+          "XGBoost + \"A\"-section \n variables",
+          "XGBoost + variables \n from MCA",
+          "KNN + variables \n from MCA"
+          )
+
+temp$key <- rep(labs, 20)
+
+temp$key <- factor(temp$key, levels = labs)
+
+
+ggplot(data = temp, aes(x = value, y = key, fill = key)) +
+  geom_boxplot() + 
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.position = "None",
+        plot.title = element_text(face = "bold", size = 9, hjust = 0)) +
+  geom_jitter(aes(x = value, y = key), color = "black", size = 0.7) +
+  labs(fill = "Setting", y = "", x = "Accuracy")
+```
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for displaying the contingency tables. 
+##### ------------------------------------------------- #####
+
+set.seed(8)
+
+# RF + data_A
+
+rf_tune <- train(Passion_0 ~., 
+                   data = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[1]]),
+                   method = "rf",
+                   preProc = c('scale','center'),
+                   trControl = ctrl,
+                   ntree = 500,
+                   tuneGrid = data.frame(mtry = c(3,5,7))
+                   )
+  
+pred_rf <- predict(rf_tune, 
+                   newdata = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(-partitions[[1]]))
+  
+M <- table(pred_rf, data_A$Passion_0[-partitions[[1]]])
+
+print(M)
+
+# RF + data_A_MCA
+
+rf_tune <- train(Passion_0 ~., 
+                   data = data_A_MCA %>% dplyr::select(-Basic_passion) %>% dplyr::slice(partitions[[1]]),
+                   method = "rf",
+                   preProc = c('scale','center'),
+                   trControl = ctrl,
+                   ntree = 500,
+                   tuneGrid = data.frame(mtry = c(5,7,9))
+                   )
+  
+pred_rf <- predict(rf_tune, 
+                   newdata = data_A_MCA %>% dplyr::select(-Basic_passion) %>% dplyr::slice(-partitions[[1]]))
+  
+M <- table(pred_rf, data_A_MCA$Passion_0[-partitions[[1]]])
+
+print(M)
+
+# XGBoost + data_A
+
+xgb_tune <- train(Passion_0 ~., 
+                    data = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[1]]),
+                    method = "xgbTree",
+                    preProc = c('scale','center'),
+                    metric = "Accuracy",
+                    trControl = ctrl,
+                    tuneGrid = expand.grid(nrounds = c(500), max_depth = c(2,4,6), eta = c(0.01),
+                                           gamma = c(1), colsample_bytree = c(0.5),
+                                           min_child_weight = c(0.5), subsample = c(0.5)))
+  
+pred_xgb <- predict(xgb_tune, 
+                      newdata = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(-partitions[[1]]))
+  
+M <- table(pred_xgb, data_A$Passion_0[-partitions[[1]]])
+
+print(M)
+
+# XGBoost + data_A_MCA
+
+xgb_tune <- train(Passion_0 ~., 
+                    data = data_A_MCA %>% dplyr::select(-Basic_passion) %>% dplyr::slice(partitions[[1]]),
+                    method = "xgbTree",
+                    preProc = c('scale','center'),
+                    metric = "Accuracy",
+                    trControl = ctrl,
+                    tuneGrid = expand.grid(nrounds = c(500), max_depth = c(2,4,6), eta = c(0.001),
+                                           gamma = c(1), colsample_bytree = c(0.5),
+                                           min_child_weight = c(0.1), subsample = c(0.4)))
+  
+pred_xgb <- predict(xgb_tune, 
+                      newdata = data_A_MCA %>% dplyr::select(-Basic_passion) %>% dplyr::slice(-partitions[[1]]))
+  
+M <- table(pred_xgb, data_A_MCA$Passion_0[-partitions[[1]]])
+
+print(M)
+
+# KNN + data_A_MCA
+
+knn_tune <- train(Passion_0 ~., 
+                    data = data_A_MCA %>% dplyr::select(-Basic_passion) %>% dplyr::slice(partitions[[1]]),
+                    method = "kknn",   
+                    preProc = c('scale','center'),
+                    tuneGrid = expand.grid(kmax = c(15),
+                                           distance = c(0.5,1,2,4), 
+                                           kernel = "optimal"),
+                    metric = "Accuracy",
+                    trControl = ctrl)
+  
+pred_knn <- predict(knn_tune, newdata = data_A_MCA %>% dplyr::select(-Basic_passion) %>% dplyr::slice(-partitions[[1]]))
+  
+M <- table(pred_knn, data_A_MCA$Passion_0[-partitions[[1]]])
+
+print(M)
+```
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for classifying Basic_passion with RF
+##### ------------------------------------------------- #####
+
+set.seed(8)
+
+K = 10
+
+accuracies_ml_basic <- as.data.frame(matrix(0, nrow = 5, ncol = K))
+
+for(k in 1:K){
+  
+  # Classification with RF and data_A.
+  
+  rf_tune <- train(Basic_passion ~., 
+                   data = data_A %>% dplyr::select(-c(Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[k]]),
+                   method = "rf",
+                   preProc = c('scale','center'),
+                   trControl = ctrl,
+                   ntree = 500,
+                   tuneGrid = data.frame(mtry = c(2,3,4))
+                   )
+  
+  pred_rf <- predict(rf_tune, 
+                     newdata = data_A %>% dplyr::select(-c(Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(-partitions[[k]]))
+  
+  M <- table(pred_rf, data_A$Basic_passion[-partitions[[k]]])
+  
+  accuracies_ml_basic[1,k] <- sum(diag(M))/sum(M)
+}
+
+
+for(k in 1:K){
+    
+  # Classification with RF and data_A_MCA.
+  
+  rf_tune <- train(Basic_passion ~., 
+                   data = data_A_MCA %>% dplyr::select(-Passion_0) %>% dplyr::slice(partitions[[k]]),
+                   method = "rf",
+                   preProc = c('scale','center'),
+                   trControl = ctrl,
+                   ntree = 500,
+                   tuneGrid = data.frame(mtry = c(5,7,9))
+                   )
+  
+  pred_rf <- predict(rf_tune, 
+                     newdata = data_A_MCA %>% dplyr::select(-Passion_0) %>% dplyr::slice(-partitions[[k]]))
+  
+  M <- table(pred_rf, data_A_MCA$Basic_passion[-partitions[[k]]])
+  
+  accuracies_ml_basic[2,k] <- sum(diag(M))/sum(M)
+}
+
+```
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for classifying Basic_passion with XGBoost
+##### ------------------------------------------------- #####
+
+
+# Preliminary setting for the tuning.
+
+# xgb_tune <- train(Passion_0 ~., 
+#                   data = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[k]]),
+#                   method = "xgbTree",
+#                   preProc = c('scale','center'),
+#                   metric = "Accuracy",
+#                   trControl = ctrl,
+#                   tuneGrid = expand.grid(nrounds = c(100), max_depth = c(2,3,4), eta = c(0.01, 0.05, 0.1),
+#                                          gamma = c(0.1,1,10), colsample_bytree = c(0.5),
+#                                          min_child_weight = c(0.1, 0.5), subsample = c(0.3, 0.5, 0.7)))
+
+set.seed(8)
+
+for(k in 1:K){
+  
+  # Classification with XGBoost and data_A.
+  
+  xgb_tune <- train(Basic_passion ~., 
+                    data = data_A %>% dplyr::select(-c(Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[k]]),
+                    method = "xgbTree",
+                    preProc = c('scale','center'),
+                    metric = "Accuracy",
+                    trControl = ctrl,
+                    tuneGrid = expand.grid(nrounds = c(500), max_depth = c(2,3,4), eta = c(0.05),
+                                           gamma = c(1), colsample_bytree = c(0.5),
+                                           min_child_weight = c(0.5), subsample = c(0.5)))
+  
+  pred_xgb <- predict(xgb_tune, 
+                      newdata = data_A %>% dplyr::select(-c(Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(-partitions[[k]]))
+  
+  M <- table(pred_xgb, data_A$Basic_passion[-partitions[[k]]])
+  
+  accuracies_ml_basic[3,k] <- sum(diag(M))/sum(M)
+}
+
+for(k in 1:K){
+  
+  # Classification with XGBoost and data_A_MCA.
+  
+  xgb_tune <- train(Basic_passion ~., 
+                    data = data_A_MCA %>% dplyr::select(-Passion_0) %>% dplyr::slice(partitions[[k]]),
+                    method = "xgbTree",
+                    preProc = c('scale','center'),
+                    metric = "Accuracy",
+                    trControl = ctrl,
+                    tuneGrid = expand.grid(nrounds = c(500), max_depth = c(2,4,6), eta = c(0.005),
+                                           gamma = c(1), colsample_bytree = c(0.5),
+                                           min_child_weight = c(0.5), subsample = c(0.5)))
+  
+  pred_xgb <- predict(xgb_tune, 
+                      newdata = data_A_MCA %>% dplyr::select(-Passion_0) %>% dplyr::slice(-partitions[[k]]))
+  
+  M <- table(pred_xgb, data_A_MCA$Basic_passion[-partitions[[k]]])
+  
+  accuracies_ml_basic[4,k] <- sum(diag(M))/sum(M)
+}
+```
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for classifying Basic_passion with KNN
+##### ------------------------------------------------- #####
+
+
+# Preliminary setting for the tuning.
+
+# knn_tune <- train(Basic_passion ~., 
+#                     data = data_A_MCA %>% dplyr::select(-Passion_0) %>% dplyr::slice(partitions[[1]]),
+#                     method = "kknn",   
+#                     preProc = c('scale','center'),
+#                     tuneGrid = expand.grid(kmax = c(13, 15, 17),
+#                                            distance = c(0.5,1,2,4), 
+#                                            kernel = "optimal"),
+#                     metric = "Accuracy",
+#                     trControl = ctrl)
+
+for(k in 1:K){
+  knn_tune <- train(Basic_passion ~., 
+                    data = data_A_MCA %>% dplyr::select(-Passion_0) %>% dplyr::slice(partitions[[k]]),
+                    method = "kknn",   
+                    preProc = c('scale','center'),
+                    tuneGrid = expand.grid(kmax = c(15),
+                                           distance = c(0.5,1,2,4), 
+                                           kernel = "optimal"),
+                    metric = "Accuracy",
+                    trControl = ctrl)
+  
+  pred_knn <- predict(knn_tune, newdata = data_A_MCA %>% dplyr::select(-Passion_0) %>% dplyr::slice(-partitions[[k]]))
+  
+  M <- table(pred_knn, data_A_MCA$Basic_passion[-partitions[[k]]])
+  
+  accuracies_ml_basic[5,k] <- sum(diag(M))/sum(M)
+}
+```
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for plotting the accuracy for ML classification methods
+# based on Passion_0
+##### ------------------------------------------------- #####
+
+temp <- gather(accuracies_ml_basic)
+labs <- c("RF + \"A\"-section \n variables",
+          "RF + variables \n from MCA",
+          "XGBoost + \"A\"-section \n variables",
+          "XGBoost + variables \n from MCA",
+          "KNN + variables \n from MCA"
+          )
+
+temp$key <- rep(labs, 10)
+
+temp$key <- factor(temp$key, levels = labs)
+
+
+ggplot(data = temp, aes(x = value, y = key, fill = key)) +
+  geom_boxplot() + 
+  theme(panel.background = element_rect(fill = "grey93", linetype = "solid", color = "black"),
+        panel.grid = element_line(linetype = "dashed", color = "white", size = 0.8),
+        legend.position = "None",
+        plot.title = element_text(face = "bold", size = 9, hjust = 0)) +
+  geom_jitter(aes(x = value, y = key), color = "black", size = 0.7) +
+  labs(fill = "Setting", y = "", x = "Accuracy")
+```
+
+
+
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for displaying the contingency tables. 
+##### ------------------------------------------------- #####
+
+# RF with data_A
+
+set.seed(8)
+
+rf_tune <- train(Basic_passion ~., 
+                 data = data_A %>% dplyr::select(-c(Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[1]]),
+                 method = "rf",
+                 preProc = c('scale','center'),
+                 trControl = ctrl,
+                 ntree = 500,
+                 tuneGrid = data.frame(mtry = c(2,3,4))
+                 )
+
+pred_rf <- predict(rf_tune, 
+                   newdata = data_A %>% dplyr::select(-c(Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(-partitions[[1]]))
+
+M <- table(pred_rf, data_A$Basic_passion[-partitions[[1]]])
+
+print(M)
+
+# RF with data_A_MCA
+
+rf_tune <- train(Basic_passion ~., 
+                 data = data_A_MCA %>% dplyr::select(-Passion_0) %>% dplyr::slice(partitions[[1]]),
+                 method = "rf",
+                 preProc = c('scale','center'),
+                 trControl = ctrl,
+                 ntree = 500,
+                 tuneGrid = data.frame(mtry = c(5,7,9))
+                 )
+
+pred_rf <- predict(rf_tune, 
+                   newdata = data_A_MCA %>% dplyr::select(-Passion_0) %>% dplyr::slice(-partitions[[1]]))
+
+M.1 <- table(pred_rf, data_A_MCA$Basic_passion[-partitions[[1]]])
+
+print(M)
+
+# XGBoost with data_A
+
+xgb_tune <- train(Basic_passion ~., 
+                  data = data_A %>% dplyr::select(-c(Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(partitions[[1]]),
+                  method = "xgbTree",
+                  preProc = c('scale','center'),
+                  metric = "Accuracy",
+                  trControl = ctrl,
+                  tuneGrid = expand.grid(nrounds = c(500), max_depth = c(2,3,4), eta = c(0.05),
+                                         gamma = c(1), colsample_bytree = c(0.5),
+                                         min_child_weight = c(0.5), subsample = c(0.5)))
+
+pred_xgb <- predict(xgb_tune, 
+                    newdata = data_A %>% dplyr::select(-c(Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(-partitions[[1]]))
+
+M.2 <- table(pred_xgb, data_A$Basic_passion[-partitions[[1]]])
+
+print(M)
+
+# XGBoost with data_A_MCA
+
+xgb_tune <- train(Basic_passion ~., 
+                  data = data_A_MCA %>% dplyr::select(-Passion_0) %>% dplyr::slice(partitions[[1]]),
+                  method = "xgbTree",
+                  preProc = c('scale','center'),
+                  metric = "Accuracy",
+                  trControl = ctrl,
+                  tuneGrid = expand.grid(nrounds = c(500), max_depth = c(2,4,6), eta = c(0.005),
+                                         gamma = c(1), colsample_bytree = c(0.5),
+                                         min_child_weight = c(0.5), subsample = c(0.5)))
+
+pred_xgb <- predict(xgb_tune, 
+                    newdata = data_A_MCA %>% dplyr::select(-Passion_0) %>% dplyr::slice(-partitions[[1]]))
+
+M.3 <- table(pred_xgb, data_A_MCA$Basic_passion[-partitions[[1]]])
+
+print(M)
+
+# KNN with data_A_MCA
+
+knn_tune <- train(Basic_passion ~., 
+                  data = data_A_MCA %>% dplyr::select(-Passion_0) %>% dplyr::slice(partitions[[1]]),
+                  method = "kknn",   
+                  preProc = c('scale','center'),
+                  tuneGrid = expand.grid(kmax = c(15),
+                                         distance = c(0.5,1,2,4), 
+                                         kernel = "optimal"),
+                  metric = "Accuracy",
+                  trControl = ctrl)
+
+pred_knn <- predict(knn_tune, newdata = data_A_MCA %>% dplyr::select(-Passion_0) %>% dplyr::slice(-partitions[[1]]))
+
+M.4 <- table(pred_knn, data_A_MCA$Basic_passion[-partitions[[1]]])
+
+print(M)
+
+xtable::xtable(M.4, type = "latex")
+```
+
+
+
+
+```{r}
+aggregate(list(numdup=rep(1,nrow(data_A %>% dplyr::select(-c(Basic_passion,Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(which(data_A$Basic_passion == "desire"))))), data_A %>% dplyr::select(-c(Basic_passion,Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(which(data_A$Basic_passion == "desire")), length)
+
+data_A  %>% dplyr::select(-c(Basic_passion,Passion_0, TempA.con, `5th_A`)) %>% dplyr::slice(which(data_A$Basic_passion == "desire")) %>% dplyr::slice(which(TSigA_group == "Simple duple" &
+                                                                                                    TempA_group2 == "Moderate" &
+                                                                                                    KSigA_group == "ss" &
+                                                                                                    KeyA == "A" &
+                                                                                                    ModeA == "M" &
+                                                                                                    fl == "0" &
+                                                                                                    ob == "0" &
+                                                                                                    hn == "0" &
+                                                                                                    tp == "0"))
+
+prov <- dplyr::slice(data_A, which(data_A$Basic_passion == "desire")) 
+
+which(prov$TSigA_group == "Simple duple" &
+      prov$TempA_group2 == "Moderate" &
+      prov$KSigA_group == "ss" &
+      prov$KeyA == "A" &
+      prov$ModeA == "M" &
+      prov$fl == "0" &
+      prov$ob == "0" &
+      prov$hn == "0" &
+      prov$tp == "0")
+
+
+
+
+
+gow_mat_form_des[c(31,39,63),]
+```
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for extracting the indexes of central pieces for the 
+# LIME interpretation. 
+##### ------------------------------------------------- #####
+
+gow_mat_form <- tidyr::spread(gower_mat, key = "Y", value = "Distance")
+gow_mat_form <- gow_mat_form[,-1]
+
+
+# Indexes for the most central pieces for category "desire".
+gow_mat_form_des <- gow_mat_form[1:table(data_A$Basic_passion)[1],1:table(data_A$Basic_passion)[1]]
+totaldist_des <- sort(round(unique(rowSums(gow_mat_form_des)),4))
+tenperc_des <- totaldist_des[1:round((length(totaldist_des)*0.1))]
+
+tenperc_index_des <- rep(0, length(tenperc_des))
+
+for(i in 1:length(tenperc_des)){
+  tenperc_index_des[i] <- which(round(rowSums(gow_mat_form_des),4) == tenperc_des[i])[1]
+}
+
+
+
+# Indexes for the most central pieces for category "hatred".
+gow_mat_form_hat <- gow_mat_form[(1+cumsum(table(data_A$Basic_passion))[1]):cumsum(table(data_A$Basic_passion))[2],
+                                 (1+cumsum(table(data_A$Basic_passion))[1]):cumsum(table(data_A$Basic_passion))[2]]
+totaldist_hat <- sort(round(unique(rowSums(gow_mat_form_hat)),4))
+tenperc_hat <- totaldist_hat[1:round((length(totaldist_hat)*0.1))]
+
+tenperc_index_hat <- rep(0, length(tenperc_hat))
+
+for(i in 1:length(tenperc_hat)){
+  tenperc_index_hat[i] <- which(round(rowSums(gow_mat_form_hat),4) == tenperc_hat[i])[1]
+}
+
+tenperc_index_hat <- tenperc_index_hat + cumsum(table(data_A$Basic_passion))[1]
+
+
+
+# Indexes for the most central pieces for category "joy".
+gow_mat_form_joy <- gow_mat_form[(1+cumsum(table(data_A$Basic_passion))[2]):cumsum(table(data_A$Basic_passion))[3],
+                                 (1+cumsum(table(data_A$Basic_passion))[2]):cumsum(table(data_A$Basic_passion))[3]]
+totaldist_joy <- sort(round(unique(rowSums(gow_mat_form_joy)),4))
+tenperc_joy <- totaldist_joy[1:round((length(totaldist_joy)*0.1))]
+
+tenperc_index_joy <- rep(0, length(tenperc_joy))
+
+for(i in 1:length(tenperc_joy)){
+  tenperc_index_joy[i] <- which(round(rowSums(gow_mat_form_joy),4) == tenperc_joy[i])[1]
+}
+
+tenperc_index_joy <- tenperc_index_joy + cumsum(table(data_A$Basic_passion))[2]
+
+
+# Indexes for the most central pieces for category "love".
+gow_mat_form_love <- gow_mat_form[(1+cumsum(table(data_A$Basic_passion))[3]):cumsum(table(data_A$Basic_passion))[4],
+                                 (1+cumsum(table(data_A$Basic_passion))[3]):cumsum(table(data_A$Basic_passion))[4]]
+totaldist_love <- sort(round(unique(rowSums(gow_mat_form_love)),4))
+tenperc_love <- totaldist_love[1:round((length(totaldist_love)*0.1))]
+
+tenperc_index_love <- rep(0, length(tenperc_love))
+
+for(i in 1:length(tenperc_love)){
+  tenperc_index_love[i] <- which(round(rowSums(gow_mat_form_love),4) == tenperc_love[i])[1]
+}
+
+tenperc_index_love <- tenperc_index_love + cumsum(table(data_A$Basic_passion))[3]
+
+
+# Indexes for the most central pieces for category "sadness".
+gow_mat_form_sad <- gow_mat_form[(1+cumsum(table(data_A$Basic_passion))[4]):cumsum(table(data_A$Basic_passion))[5],
+                                 (1+cumsum(table(data_A$Basic_passion))[4]):cumsum(table(data_A$Basic_passion))[5]]
+totaldist_sad <- sort(round(unique(rowSums(gow_mat_form_sad)),4))
+tenperc_sad <- totaldist_sad[1:round((length(totaldist_sad)*0.1))]
+
+tenperc_index_sad <- rep(0, length(tenperc_sad))
+
+for(i in 1:length(tenperc_sad)){
+  tenperc_index_sad[i] <- which(round(rowSums(gow_mat_form_sad),4) == tenperc_sad[i])[1]
+}
+
+tenperc_index_sad <- tenperc_index_sad + cumsum(table(data_A$Basic_passion))[4]
+
+
+# Indexes for the most central pieces for category "wonder".
+gow_mat_form_won <- gow_mat_form[(1+cumsum(table(data_A$Basic_passion))[5]):cumsum(table(data_A$Basic_passion))[6],
+                                 (1+cumsum(table(data_A$Basic_passion))[5]):cumsum(table(data_A$Basic_passion))[6]]
+totaldist_won <- sort(round(unique(rowSums(gow_mat_form_won)),4))
+tenperc_won <- totaldist_won[1:round((length(totaldist_won)*0.1))]
+
+tenperc_index_won <- rep(0, length(tenperc_won))
+
+for(i in 1:length(tenperc_won)){
+  tenperc_index_won[i] <- which(round(rowSums(gow_mat_form_won),4) == tenperc_won[i])[1]
+}
+
+tenperc_index_won <- tenperc_index_won + cumsum(table(data_A$Basic_passion))[5]
+
+
+# Vector of global indexes:
+
+indexes_cent <- c(tenperc_index_des, tenperc_index_hat, tenperc_index_joy,
+                  tenperc_index_love, tenperc_index_sad, tenperc_index_won)
+indexes_cent <- sort(indexes_cent)
+```
+
+
+
+```{r}
+set.seed(8)
+
+rf_tune <- train(Basic_passion ~., 
+                 data = data_A %>% dplyr::select(-c(Passion_0, TempA.con, `5th_A`)),
+                 method = "rf",
+                 preProc = c('scale','center'),
+                 trControl = ctrl,
+                 ntree = 500,
+                 tuneGrid = data.frame(mtry = c(2,3,4))
+                 )
+
+explainer <- lime::lime(x = data_gower_mat,
+                        model = rf_tune)
+
+explanation <- lime::explain(x = data_gower_mat %>%
+                              dplyr::slice(indexes_cent),
+              explainer = explainer,
+              labels = "desire",
+              n_features = 9
+              )
+
+lime::plot_explanations(explanation)
+
+wt_basic_passion <- explanation[,c("feature_weight", "feature_desc")]  %>% group_by(feature_desc) %>% summarise(sum(feature_weight)/length(feature_desc))
+
+wt_basic_passion <- rename(wt_basic_passion, Desire = `sum(feature_weight)/length(feature_desc)`)
+```
+
+```{r}
+explanation <- lime::explain(x = data_gower_mat %>%
+                              dplyr::slice(indexes_cent),
+              explainer = explainer,
+              labels = "hatred",
+              n_features = 9
+              )
+
+lime::plot_explanations(explanation)
+
+wt_basic_passion[,c(3,4)] <- explanation[,c("feature_weight", "feature_desc")]  %>% group_by(feature_desc) %>% summarise(sum(feature_weight)/length(feature_desc))
+
+wt_basic_passion <- wt_basic_passion[,-3]
+
+wt_basic_passion <- rename(wt_basic_passion, Hatred = `sum(feature_weight)/length(feature_desc)`)
+```
+
+
+```{r}
+explanation <- lime::explain(x = data_gower_mat %>%
+                              dplyr::slice(indexes_cent),
+              explainer = explainer,
+              labels = "joy",
+              n_features = 9
+              )
+
+wt_basic_passion[,c(4,5)] <- explanation[,c("feature_weight", "feature_desc")]  %>% group_by(feature_desc) %>% summarise(sum(feature_weight)/length(feature_desc))
+
+wt_basic_passion <- wt_basic_passion[,-4]
+
+wt_basic_passion <- rename(wt_basic_passion, Joy = `sum(feature_weight)/length(feature_desc)`)
+
+lime::plot_explanations(explanation)
+```
+
+
+
+```{r}
+explanation <- lime::explain(x = data_gower_mat %>%
+                              dplyr::slice(indexes_cent),
+              explainer = explainer,
+              labels = "love",
+              n_features = 9
+              )
+
+wt_basic_passion[,c(5,6)] <- explanation[,c("feature_weight", "feature_desc")]  %>% group_by(feature_desc) %>% summarise(sum(feature_weight)/length(feature_desc))
+
+wt_basic_passion <- wt_basic_passion[,-5]
+
+wt_basic_passion <- rename(wt_basic_passion, Love = `sum(feature_weight)/length(feature_desc)`)
+
+lime::plot_explanations(explanation)
+```
+
+
+
+```{r}
+explanation <- lime::explain(x = data_gower_mat %>%
+                              dplyr::slice(indexes_cent),
+              explainer = explainer,
+              labels = "sadness",
+              n_features = 9
+              )
+
+wt_basic_passion[,c(6,7)] <- explanation[,c("feature_weight", "feature_desc")]  %>% group_by(feature_desc) %>% summarise(sum(feature_weight)/length(feature_desc))
+
+wt_basic_passion <- wt_basic_passion[,-6]
+
+wt_basic_passion <- rename(wt_basic_passion, Sadness = `sum(feature_weight)/length(feature_desc)`)
+
+lime::plot_explanations(explanation)
+```
+
+
+
+```{r}
+explanation <- lime::explain(x = data_gower_mat %>%
+                              dplyr::slice(indexes_cent),
+              explainer = explainer,
+              labels = "wonder",
+              n_features = 9
+              )
+
+wt_basic_passion[,c(7,8)] <- explanation[,c("feature_weight", "feature_desc")]  %>% group_by(feature_desc) %>% summarise(sum(feature_weight)/length(feature_desc))
+
+wt_basic_passion <- wt_basic_passion[,-7]
+
+wt_basic_passion <- rename(wt_basic_passion, Wonder = `sum(feature_weight)/length(feature_desc)`)
+
+lime::plot_explanations(explanation)
+```
+
+
+```{r}
+temp <- rep(wt_basic_passion$feature_desc, 6)
+
+wt_basic_passion_plot <- gather(wt_basic_passion, feature_desc)
+wt_basic_passion_plot <- rename(wt_basic_passion_plot, Class = feature_desc)
+wt_basic_passion_plot <- add_column(wt_basic_passion_plot, feature_desc = temp)
+```
+
+```{r}
+ggplot(wt_basic_passion_plot, aes(x = Class, y = feature_desc, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(midpoint = 0, low = "red", high = "green3", mid = "white") + 
+  geom_text(aes(label = ifelse(abs(value) > 0.05, round(value, 3), "")), col = "black", size = 3.3) +
+  scale_y_discrete(limits = sort(wt_basic_passion$feature_desc, decreasing = TRUE)) + 
+  theme_minimal() +
+  theme(plot.title = element_text(size = 10)) + 
+  labs(x = "", y = "", fill = "Average\nvalue\nof\ncoeffs.")
+```
+
+
+```{r}
+##### ------------------------------------------------- #####
+# Code for extracting the indexes of central pieces for the 
+# LIME interpretation (Passion_0). 
+##### ------------------------------------------------- #####
+
+gow_mat_form <- tidyr::spread(gower_mat, key = "Y", value = "Distance")
+gow_mat_form <- gow_mat_form[,-1]
+
+
+# Indexes for the most central pieces for category "negative".
+gow_mat_form_neg <- gow_mat_form[1:table(data_A$Passion_0)[1],1:table(data_A$Passion_0)[1]]
+totaldist_neg <- sort(round(unique(rowSums(gow_mat_form_neg)),4))
+tenperc_neg <- totaldist_neg[1:round((length(totaldist_neg)*0.1))]
+
+tenperc_index_neg <- rep(0, length(tenperc_neg))
+
+for(i in 1:length(tenperc_neg)){
+  tenperc_index_neg[i] <- which(round(rowSums(gow_mat_form_neg),4) == tenperc_neg[i])[1]
+}
+
+
+
+# Indexes for the most central pieces for category "hatred".
+gow_mat_form_pos <- gow_mat_form[(1+cumsum(table(data_A$Passion_0))[1]):cumsum(table(data_A$Passion_0))[2],
+                                 (1+cumsum(table(data_A$Passion_0))[1]):cumsum(table(data_A$Passion_0))[2]]
+totaldist_pos <- sort(round(unique(rowSums(gow_mat_form_pos)),4))
+tenperc_pos <- totaldist_pos[1:round((length(totaldist_pos)*0.1))]
+
+tenperc_index_pos <- rep(0, length(tenperc_pos))
+
+for(i in 1:length(tenperc_pos)){
+  tenperc_index_pos[i] <- which(round(rowSums(gow_mat_form_pos),4) == tenperc_pos[i])[1]
+}
+
+tenperc_index_pos <- tenperc_index_pos + cumsum(table(data_A$Passion_0))[1]
+
+# Vector of global indexes:
+
+indexes_cent <- c(tenperc_index_neg, tenperc_index_pos)
+indexes_cent <- sort(indexes_cent)
+```
+  
+  
+
+
+```{r}
+set.seed(8)
+
+rf_tune <- train(Passion_0 ~., 
+                 data = data_A %>% dplyr::select(-c(Basic_passion, TempA.con, `5th_A`)),
+                 method = "rf",
+                 preProc = c('scale','center'),
+                 trControl = ctrl,
+                 ntree = 500,
+                 tuneGrid = data.frame(mtry = c(2,3,4))
+                 )
+
+# Note the data_gower_mat is the corresponding to the Passion_0
+explainer <- lime::lime(x = data_gower_mat,
+                        model = rf_tune)
+
+explanation <- lime::explain(x = data_gower_mat %>%
+                              dplyr::slice(indexes_cent),
+              explainer = explainer,
+              labels = "Positive",
+              n_features = 9
+              )
+
+lime::plot_explanations(explanation)
+
+wt_passion_0 <- explanation[,c("feature_weight", "feature_desc")]  %>% group_by(feature_desc) %>% summarise(sum(feature_weight)/length(feature_desc))
+
+wt_passion_0 <- rename(wt_passion_0, Positive = `sum(feature_weight)/length(feature_desc)`)
+
+ggplot(wt_passion_0, aes(x = as.factor(1), y = feature_desc, fill = Positive)) +
+  geom_tile() +
+  scale_fill_gradient2(midpoint = 0, low = "red", high = "green3", mid = "white") + 
+  geom_text(aes(label = ifelse(abs(Positive) > 0.05, round(Positive, 3), "")), col = "black", size = 3.3) +
+  scale_y_discrete(limits = sort(wt_passion_0$feature_desc, decreasing = TRUE)) + 
+  theme_minimal() +
+  theme(axis.text.x = element_blank()) + 
+  labs(x = "", y = "", fill = "Average\nvalue\nof\ncoeffs.")
+```
+
